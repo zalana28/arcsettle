@@ -137,6 +137,24 @@ SETTLEMENT_PROVIDER=mock        # Default — fake tx hashes
 SETTLEMENT_PROVIDER=arc-wallet  # Validates but does not execute yet
 ```
 
+## Real Arc Settlement (Experimental)
+
+A client-side wallet-signed USDC settlement flow is available behind a feature flag:
+
+```env
+NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT=true
+```
+
+**Disabled by default.** When enabled:
+- The buyer sees a "Pay with Connected Wallet" button on approved invoices
+- Requires a connected wallet on Arc Testnet (chain ID 5042002)
+- Executes a real ERC-20 USDC transfer from buyer → seller
+- Uses the Arc Testnet USDC interface at `0x3600000000000000000000000000000000000000`
+- After on-chain confirmation, the frontend calls `/api/invoices/:id/record-settlement` to persist the result
+- The mock "Settle Invoice" button remains available as a fallback
+
+**Production note:** The backend `/record-settlement` endpoint currently trusts the frontend-provided transaction hash. Before production use, on-chain receipt verification must be added (fetch receipt from RPC, verify Transfer event logs, confirm block depth).
+
 ## Demo Accounts
 
 After running `npx prisma db seed`:
