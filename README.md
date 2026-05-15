@@ -172,6 +172,27 @@ When enabled in Preview:
 - After on-chain confirmation, the backend verifies the transaction receipt before recording settlement
 - An "Experimental" banner is shown to indicate real mode is active
 
+## Circle API Integration Status
+
+Circle API key verification is supported for future Circle Wallets / Paymaster integration:
+
+| Feature | Status |
+|---------|--------|
+| API key verification | ✅ Supported (`GET /api/dev/circle/verify`) |
+| Circle Wallets | Not enabled yet |
+| Circle Paymaster | Not enabled yet |
+| Circle Payments | Not enabled yet |
+
+**Important:**
+- The Circle API key (`CIRCLE_API_KEY`) must remain server-side only — never exposed to the frontend
+- Existing settlement modes (mock + Arc wallet-signed) remain unchanged
+- Circle payments will be added in a future phase once the API key is verified and Circle services are configured
+
+To verify your Circle API key:
+```bash
+curl http://localhost:3000/api/dev/circle/verify
+```
+
 ## Demo Accounts
 
 After running `npx prisma db seed`:
