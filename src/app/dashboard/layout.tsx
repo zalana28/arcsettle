@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ConnectWallet } from "@/components/connect-wallet";
 
 interface User {
   id: string;
@@ -77,6 +78,7 @@ export default function DashboardLayout({
               </nav>
             </div>
             <div className="flex items-center gap-4">
+              <ConnectWallet />
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-gray-900">{user.name}</p>
                 <p className="text-xs text-gray-500">{user.email}</p>
