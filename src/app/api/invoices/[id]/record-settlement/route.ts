@@ -78,6 +78,28 @@ export async function POST(
       );
     }
 
+    // Validate fromWallet matches buyer.walletAddress
+    if (
+      !invoice.buyer.walletAddress ||
+      fromWallet.toLowerCase() !== invoice.buyer.walletAddress.toLowerCase()
+    ) {
+      return errorResponse(
+        "fromWallet does not match the buyer wallet address on record",
+        400
+      );
+    }
+
+    // Validate toWallet matches seller.walletAddress
+    if (
+      !invoice.seller.walletAddress ||
+      toWallet.toLowerCase() !== invoice.seller.walletAddress.toLowerCase()
+    ) {
+      return errorResponse(
+        "toWallet does not match the seller wallet address on record",
+        400
+      );
+    }
+
     // Check for duplicate transaction hash
     const existingTx = await prisma.transaction.findFirst({
       where: { transactionHash },
