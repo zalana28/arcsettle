@@ -171,20 +171,28 @@ export default function InvoiceDetailPage({
           <h3 className="text-sm font-medium text-gray-500 mb-3">Seller (From)</h3>
           <p className="font-medium text-gray-900">{invoice.seller.name}</p>
           <p className="text-sm text-gray-600">{invoice.seller.email}</p>
-          {invoice.seller.walletAddress && (
-            <p className="text-xs text-gray-500 mt-1 font-mono">
+          {invoice.seller.walletAddress ? (
+            <p className="text-xs text-gray-500 mt-2 font-mono break-all">
               {invoice.seller.walletAddress}
             </p>
+          ) : (
+            <span className="inline-flex items-center mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              Wallet not connected
+            </span>
           )}
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="text-sm font-medium text-gray-500 mb-3">Buyer (To)</h3>
           <p className="font-medium text-gray-900">{invoice.buyer.name}</p>
           <p className="text-sm text-gray-600">{invoice.buyer.email}</p>
-          {invoice.buyer.walletAddress && (
-            <p className="text-xs text-gray-500 mt-1 font-mono">
+          {invoice.buyer.walletAddress ? (
+            <p className="text-xs text-gray-500 mt-2 font-mono break-all">
               {invoice.buyer.walletAddress}
             </p>
+          ) : (
+            <span className="inline-flex items-center mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              Wallet not connected
+            </span>
           )}
         </div>
       </div>
@@ -219,13 +227,27 @@ export default function InvoiceDetailPage({
           <p className="text-sm text-blue-700 mb-4">
             Settlement fee: <strong>0.5%</strong> (${(parseFloat(invoice.amount) * 0.005).toFixed(2)} USDC)
           </p>
-          <button
-            onClick={handleSettle}
-            disabled={actionLoading}
-            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {actionLoading ? "Settling..." : "Settle Invoice"}
-          </button>
+          {(!invoice.seller.walletAddress || !invoice.buyer.walletAddress) ? (
+            <div>
+              <p className="text-sm text-amber-700 mb-3 font-medium">
+                Both parties must connect wallets before settlement.
+              </p>
+              <button
+                disabled
+                className="px-6 py-2.5 bg-blue-300 text-white rounded-lg font-medium cursor-not-allowed opacity-60"
+              >
+                Settle Invoice
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleSettle}
+              disabled={actionLoading}
+              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {actionLoading ? "Settling..." : "Settle Invoice"}
+            </button>
+          )}
         </div>
       )}
 

@@ -40,10 +40,27 @@ export async function settleInvoice(
     };
   }
 
-  const buyerWalletAddress =
-    invoice.buyer.walletAddress || `0x_buyer_${invoice.buyerId.slice(0, 8)}`;
-  const sellerWalletAddress =
-    invoice.seller.walletAddress || `0x_seller_${invoice.sellerId.slice(0, 8)}`;
+  // Wallet gate: require both parties to have wallet addresses
+  if (!invoice.seller.walletAddress) {
+    return {
+      success: false,
+      transactionHash: null,
+      fee: 0,
+      error: "Seller wallet address is required before settlement",
+    };
+  }
+
+  if (!invoice.buyer.walletAddress) {
+    return {
+      success: false,
+      transactionHash: null,
+      fee: 0,
+      error: "Buyer wallet address is required before settlement",
+    };
+  }
+
+  const buyerWalletAddress = invoice.buyer.walletAddress;
+  const sellerWalletAddress = invoice.seller.walletAddress;
 
   // Step 1: Update status to processing
   await prisma.invoice.update({
