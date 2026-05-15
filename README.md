@@ -115,6 +115,26 @@ npm run dev
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/arcsettle?schema=public"
 JWT_SECRET="change-this-in-production"
 NEXT_PUBLIC_APP_NAME="ArcSettle"
+SETTLEMENT_PROVIDER="mock"
+```
+
+## Current Settlement Mode
+
+ArcSettle uses a pluggable settlement provider architecture:
+
+| Provider | Status | Description |
+|----------|--------|-------------|
+| `mock` | **Active (default)** | Simulates settlement with 1s delay and fake tx hash |
+| `arc-wallet` | Scaffolded | Validates inputs, not yet executing real transfers |
+
+The `arc-wallet` provider performs full input validation (wallet addresses, currency, chain, USDC token config) but throws a clear error before any real transaction signing. Once client-side wallet signing is integrated, it will execute real ERC-20 transfers on Arc Testnet.
+
+Arc Testnet USDC ERC-20 interface is configured at `0x3600000000000000000000000000000000000000` (6 decimals). Arc uses USDC as the native gas token with 18 decimals for gas accounting, while the linked ERC-20 interface uses 6 decimals.
+
+To switch providers, set `SETTLEMENT_PROVIDER` in `.env`:
+```env
+SETTLEMENT_PROVIDER=mock        # Default — fake tx hashes
+SETTLEMENT_PROVIDER=arc-wallet  # Validates but does not execute yet
 ```
 
 ## Demo Accounts
