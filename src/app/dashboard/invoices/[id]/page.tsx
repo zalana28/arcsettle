@@ -253,7 +253,7 @@ export default function InvoiceDetailPage({
       {/* Parties */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Seller (From)</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Seller / Receiver</h3>
           <p className="font-medium text-gray-900">{invoice.seller.name}</p>
           <p className="text-sm text-gray-600">{invoice.seller.email}</p>
           {invoice.seller.walletAddress ? (
@@ -267,7 +267,7 @@ export default function InvoiceDetailPage({
           )}
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Buyer (To)</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Buyer / Payer</h3>
           <p className="font-medium text-gray-900">{invoice.buyer.name}</p>
           <p className="text-sm text-gray-600">{invoice.buyer.email}</p>
           {invoice.buyer.walletAddress ? (
