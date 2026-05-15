@@ -4,6 +4,7 @@ import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import { useAccount, useChainId } from "wagmi";
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from "@/lib/constants";
+import { ARC_TESTNET_CHAIN_ID } from "@/lib/arc";
 import {
   isRealArcSettlementEnabled,
   validateWalletForSettlement,
@@ -47,6 +48,10 @@ const ARC_SETTLEMENT_STATUS_LABELS: Record<ArcSettlementStatus, string> = {
   error: "Settlement failed",
 };
 
+function getArcScanTxUrl(hash: string): string {
+  return `https://testnet.arcscan.app/tx/${hash}`;
+}
+
 export default function InvoiceDetailPage({
   params,
 }: {
@@ -58,6 +63,7 @@ export default function InvoiceDetailPage({
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Real settlement state
   const [arcStatus, setArcStatus] = useState<ArcSettlementStatus>("idle");
@@ -131,17 +137,16 @@ export default function InvoiceDetailPage({
   const handleRealSettle = useCallback(async () => {
     if (!invoice) return;
 
+    setShowConfirmModal(false);
     setError("");
     setArcStatus("idle");
     setArcTxHash(null);
     setActionLoading(true);
 
     try {
-      // The buyer pays the seller
       const toAddress = invoice.seller.walletAddress as `0x${string}`;
       const amount = parseFloat(invoice.amount);
 
-      // Execute on-chain USDC transfer
       const { txHash } = await executeUsdcTransfer({
         toAddress,
         amount,
@@ -151,7 +156,6 @@ export default function InvoiceDetailPage({
       setArcTxHash(txHash);
       setArcStatus("recording");
 
-      // Record settlement on backend
       const result = await recordSettlementOnBackend({
         invoiceId: id,
         transactionHash: txHash,
@@ -189,22 +193,42 @@ export default function InvoiceDetailPage({
   const isSeller = currentUserId === invoice.seller.id;
   const walletsReady = !!invoice.seller.walletAddress && !!invoice.buyer.walletAddress;
 
-  // For real settlement: buyer pays seller, so buyer's wallet must match connected
   const walletValidationError =
     realSettlementEnabled && isBuyer
       ? validateWalletForSettlement(connectedAddress, invoice.buyer.walletAddress || undefined, chainId)
       : null;
 
+  // Detailed disabled reasons for real settlement
+  const getDisabledReasons = (): string[] => {
+    const reasons: string[] = [];
+    if (!connectedAddress) reasons.push("Wallet not connected");
+    else if (chainId !== ARC_TESTNET_CHAIN_ID) reasons.push("Wrong network — switch to Arc Testnet");
+    else if (
+      invoice.buyer.walletAddress &&
+      connectedAddress.toLowerCase() !== invoice.buyer.walletAddress.toLowerCase()
+    )
+      reasons.push("Connected wallet does not match buyer wallet");
+    if (!invoice.buyer.walletAddress) reasons.push("Missing buyer wallet address");
+    if (!invoice.seller.walletAddress) reasons.push("Missing seller wallet address");
+    if (invoice.status !== "approved") reasons.push("Invoice is not in approved status");
+    return reasons;
+  };
+
   return (
     <div>
       <div className="mb-6">
-        <Link
-          href="/dashboard/invoices"
-          className="text-sm text-gray-500 hover:text-gray-700"
-        >
+        <Link href="/dashboard/invoices" className="text-sm text-gray-500 hover:text-gray-700">
           ← Back to Invoices
         </Link>
       </div>
+
+      {/* Experimental banner */}
+      {realSettlementEnabled && (
+        <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-sm">
+          <strong>Experimental:</strong> Real Arc Testnet settlement is enabled. This will request a
+          wallet signature and submit a USDC transfer on Arc Testnet.
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
@@ -216,9 +240,7 @@ export default function InvoiceDetailPage({
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {invoice.invoiceNumber}
-            </h1>
+            <h1 className="text-2xl font-bold text-gray-900">{invoice.invoiceNumber}</h1>
             <p className="text-gray-500 mt-1">{invoice.description}</p>
           </div>
           <span
@@ -285,9 +307,7 @@ export default function InvoiceDetailPage({
       {/* Actions */}
       {invoice.status === "pending_approval" && isBuyer && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
-          <h3 className="text-lg font-medium text-yellow-800 mb-2">
-            Action Required
-          </h3>
+          <h3 className="text-lg font-medium text-yellow-800 mb-2">Action Required</h3>
           <p className="text-sm text-yellow-700 mb-4">
             This invoice is waiting for your approval before it can be settled.
           </p>
@@ -303,14 +323,13 @@ export default function InvoiceDetailPage({
 
       {invoice.status === "approved" && (isBuyer || isSeller) && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
-          <h3 className="text-lg font-medium text-blue-800 mb-2">
-            Ready for Settlement
-          </h3>
+          <h3 className="text-lg font-medium text-blue-800 mb-2">Ready for Settlement</h3>
           <p className="text-sm text-blue-700 mb-2">
             This invoice has been approved and is ready for settlement on Arc Testnet.
           </p>
           <p className="text-sm text-blue-700 mb-4">
-            Settlement fee: <strong>0.5%</strong> (${(parseFloat(invoice.amount) * 0.005).toFixed(2)} USDC)
+            Settlement fee: <strong>0.5%</strong> ($
+            {(parseFloat(invoice.amount) * 0.005).toFixed(2)} USDC)
           </p>
 
           {!walletsReady ? (
@@ -328,10 +347,11 @@ export default function InvoiceDetailPage({
           ) : realSettlementEnabled && isBuyer ? (
             <RealSettlementSection
               walletError={walletValidationError}
+              disabledReasons={getDisabledReasons()}
               arcStatus={arcStatus}
               arcTxHash={arcTxHash}
               actionLoading={actionLoading}
-              onSettle={handleRealSettle}
+              onSettle={() => setShowConfirmModal(true)}
               onMockSettle={handleMockSettle}
             />
           ) : (
@@ -349,19 +369,13 @@ export default function InvoiceDetailPage({
       {/* Real settlement progress indicator */}
       {arcStatus !== "idle" && arcStatus !== "complete" && arcStatus !== "error" && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 mb-6">
-          <h3 className="text-lg font-medium text-purple-800 mb-2">
-            On-Chain Settlement
-          </h3>
+          <h3 className="text-lg font-medium text-purple-800 mb-2">On-Chain Settlement</h3>
           <div className="flex items-center gap-3">
             <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
-            <p className="text-sm text-purple-700">
-              {ARC_SETTLEMENT_STATUS_LABELS[arcStatus]}
-            </p>
+            <p className="text-sm text-purple-700">{ARC_SETTLEMENT_STATUS_LABELS[arcStatus]}</p>
           </div>
           {arcTxHash && (
-            <p className="text-xs text-purple-600 font-mono mt-2 break-all">
-              TX: {arcTxHash}
-            </p>
+            <p className="text-xs text-purple-600 font-mono mt-2 break-all">TX: {arcTxHash}</p>
           )}
         </div>
       )}
@@ -369,9 +383,7 @@ export default function InvoiceDetailPage({
       {/* Settlement Receipt */}
       {invoice.status === "settled" && invoice.settlementHash && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
-          <h3 className="text-lg font-medium text-green-800 mb-4">
-            Settlement Receipt
-          </h3>
+          <h3 className="text-lg font-medium text-green-800 mb-4">Settlement Receipt</h3>
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-sm text-green-700">Transaction Hash</span>
@@ -404,25 +416,33 @@ export default function InvoiceDetailPage({
               <span className="text-sm text-green-900">USDC</span>
             </div>
           </div>
-          {invoice.transactions[0] && (
-            <div className="mt-4 pt-4 border-t border-green-200">
+          <div className="mt-4 pt-4 border-t border-green-200 flex flex-wrap gap-4">
+            {invoice.settlementHash.match(/^0x[a-fA-F0-9]{64}$/) && (
+              <a
+                href={getArcScanTxUrl(invoice.settlementHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-green-700 hover:text-green-900 hover:underline"
+              >
+                View on ArcScan →
+              </a>
+            )}
+            {invoice.transactions[0] && (
               <Link
                 href={`/dashboard/transactions/${invoice.transactions[0].id}`}
                 className="text-sm text-green-700 hover:text-green-900 hover:underline"
               >
                 View Transaction Details →
               </Link>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
       {/* Processing state */}
       {invoice.status === "processing" && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 mb-6">
-          <h3 className="text-lg font-medium text-purple-800 mb-2">
-            Settlement in Progress
-          </h3>
+          <h3 className="text-lg font-medium text-purple-800 mb-2">Settlement in Progress</h3>
           <p className="text-sm text-purple-700">
             Your invoice is being settled on Arc Testnet. This usually takes a few seconds.
           </p>
@@ -434,12 +454,91 @@ export default function InvoiceDetailPage({
         <h3 className="text-lg font-medium text-gray-900 mb-4">Timeline</h3>
         <div className="space-y-3 text-sm">
           <TimelineItem label="Created" date={invoice.createdAt} />
-          {invoice.approvedAt && (
-            <TimelineItem label="Approved" date={invoice.approvedAt} />
-          )}
-          {invoice.settlementDate && (
-            <TimelineItem label="Settled" date={invoice.settlementDate} />
-          )}
+          {invoice.approvedAt && <TimelineItem label="Approved" date={invoice.approvedAt} />}
+          {invoice.settlementDate && <TimelineItem label="Settled" date={invoice.settlementDate} />}
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && invoice && (
+        <ConfirmSettlementModal
+          invoice={invoice}
+          connectedAddress={connectedAddress}
+          onConfirm={handleRealSettle}
+          onCancel={() => setShowConfirmModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfirmSettlementModal({
+  invoice,
+  connectedAddress,
+  onConfirm,
+  onCancel,
+}: {
+  invoice: InvoiceDetail;
+  connectedAddress: string | undefined;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Settlement</h3>
+        <div className="space-y-3 text-sm mb-6">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Invoice</span>
+            <span className="font-medium text-gray-900">{invoice.invoiceNumber}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Amount</span>
+            <span className="font-medium text-gray-900">
+              ${parseFloat(invoice.amount).toLocaleString()} {invoice.currency}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Currency</span>
+            <span className="font-medium text-gray-900">USDC</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">From (Buyer)</span>
+            <span className="font-mono text-xs text-gray-700">
+              {connectedAddress ? `${connectedAddress.slice(0, 8)}...${connectedAddress.slice(-6)}` : "—"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">To (Seller)</span>
+            <span className="font-mono text-xs text-gray-700">
+              {invoice.seller.walletAddress
+                ? `${invoice.seller.walletAddress.slice(0, 8)}...${invoice.seller.walletAddress.slice(-6)}`
+                : "—"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Network</span>
+            <span className="font-medium text-gray-900">Arc Testnet</span>
+          </div>
+        </div>
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-6">
+          <p className="text-xs text-amber-800 font-medium">
+            This action submits a real testnet transaction. Your wallet will request a signature.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+          >
+            Confirm &amp; Sign
+          </button>
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </div>
@@ -448,6 +547,7 @@ export default function InvoiceDetailPage({
 
 function RealSettlementSection({
   walletError,
+  disabledReasons,
   arcStatus,
   arcTxHash,
   actionLoading,
@@ -455,6 +555,7 @@ function RealSettlementSection({
   onMockSettle,
 }: {
   walletError: string | null;
+  disabledReasons: string[];
   arcStatus: ArcSettlementStatus;
   arcTxHash: string | null;
   actionLoading: boolean;
@@ -463,33 +564,47 @@ function RealSettlementSection({
 }) {
   if (arcStatus === "complete") {
     return (
-      <div className="flex items-center gap-2 text-green-700">
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            fillRule="evenodd"
-            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-            clipRule="evenodd"
-          />
-        </svg>
-        <span className="text-sm font-medium">Settlement recorded successfully!</span>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-green-700">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <span className="text-sm font-medium">Settlement recorded successfully!</span>
+        </div>
         {arcTxHash && (
-          <span className="text-xs font-mono text-green-600 ml-2">
-            {arcTxHash.slice(0, 10)}...
-          </span>
+          <a
+            href={getArcScanTxUrl(arcTxHash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-indigo-600 hover:underline"
+          >
+            View on ArcScan →
+          </a>
         )}
       </div>
     );
   }
 
+  const isDisabled = actionLoading || !!walletError || disabledReasons.length > 0;
+
   return (
     <div className="space-y-3">
-      {walletError && (
-        <p className="text-sm text-amber-700 font-medium">{walletError}</p>
+      {walletError && <p className="text-sm text-amber-700 font-medium">{walletError}</p>}
+      {!walletError && disabledReasons.length > 0 && (
+        <ul className="text-sm text-amber-700 list-disc list-inside space-y-1">
+          {disabledReasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
       )}
       <div className="flex gap-3">
         <button
           onClick={onSettle}
-          disabled={actionLoading || !!walletError}
+          disabled={isDisabled}
           className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {actionLoading ? "Processing..." : "Pay with Connected Wallet"}

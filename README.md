@@ -155,6 +155,23 @@ NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT=true
 
 **Backend verification:** The `/record-settlement` endpoint now includes on-chain receipt verification. It fetches the transaction receipt from Arc Testnet RPC, decodes the ERC-20 Transfer event, and verifies that from/to/amount match the expected values before marking the invoice as settled. Production use still requires additional monitoring and compliance checks (e.g., block confirmation depth, transaction age limits, rate limiting).
 
+## Testing Real Arc Settlement in Preview
+
+For Vercel Preview deployments or local testing:
+
+| Environment | `NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT` |
+|-------------|------------------------------------------|
+| **Production** | `false` (default, mock only) |
+| **Preview** | `true` (enables real wallet signing) |
+
+When enabled in Preview:
+- Buyer must have a connected wallet on Arc Testnet (chain ID 5042002)
+- Connected wallet must match the saved buyer wallet address
+- Buyer wallet needs Arc Testnet USDC balance to cover the invoice amount
+- A confirmation modal shows transaction details before signing
+- After on-chain confirmation, the backend verifies the transaction receipt before recording settlement
+- An "Experimental" banner is shown to indicate real mode is active
+
 ## Demo Accounts
 
 After running `npx prisma db seed`:
