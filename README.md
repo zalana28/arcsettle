@@ -153,7 +153,7 @@ NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT=true
 - After on-chain confirmation, the frontend calls `/api/invoices/:id/record-settlement` to persist the result
 - The mock "Settle Invoice" button remains available as a fallback
 
-**Production note:** The backend `/record-settlement` endpoint currently trusts the frontend-provided transaction hash. Before production use, on-chain receipt verification must be added (fetch receipt from RPC, verify Transfer event logs, confirm block depth).
+**Backend verification:** The `/record-settlement` endpoint now includes on-chain receipt verification. It fetches the transaction receipt from Arc Testnet RPC, decodes the ERC-20 Transfer event, and verifies that from/to/amount match the expected values before marking the invoice as settled. Production use still requires additional monitoring and compliance checks (e.g., block confirmation depth, transaction age limits, rate limiting).
 
 ## Demo Accounts
 

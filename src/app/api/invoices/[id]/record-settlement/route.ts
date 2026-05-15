@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
 import { calculateSettlementFee } from "@/lib/utils";
 import { SETTLEMENT_FEE_PERCENT, DEFAULT_CHAIN } from "@/lib/constants";
+import { verifySettlementTransaction } from "@/services/settlement/onchainVerificationService";
 import { z } from "zod";
 
 const recordSettlementSchema = z.object({
@@ -26,12 +27,14 @@ const recordSettlementSchema = z.object({
  * Records a client-side wallet-signed settlement transaction.
  * Called after the frontend has confirmed an on-chain USDC transfer.
  *
- * TODO: Add on-chain receipt verification before production:
- * - Fetch transaction receipt from Arc Testnet RPC
- * - Verify receipt.status === "success"
- * - Verify transfer event logs match expected from/to/amount
- * - Verify block confirmations >= minimum threshold
- * - Reject if transaction is older than a reasonable time window
+ * Verification flow:
+ * 1. Validate request body schema
+ * 2. Validate invoice state (approved or processing)
+ * 3. Validate fromWallet matches buyer.walletAddress
+ * 4. Validate toWallet matches seller.walletAddress
+ * 5. Check for duplicate transaction hash
+ * 6. Verify transaction on-chain (receipt, Transfer event, from/to/amount)
+ * 7. Only then: record transaction, update invoice, create audit log
  */
 export async function POST(
   request: NextRequest,
@@ -108,11 +111,24 @@ export async function POST(
       return errorResponse("Transaction hash already recorded", 409);
     }
 
-    // TODO: Verify on-chain receipt
-    // - Call Arc Testnet RPC to fetch transaction receipt
-    // - Verify receipt.status === 1 (success)
-    // - Decode Transfer event and verify from/to/amount match
-    // - Verify sufficient block confirmations
+    // On-chain verification: verify transaction receipt and Transfer event
+    const verification = await verifySettlementTransaction({
+      transactionHash: transactionHash as `0x${string}`,
+      expectedFromWallet: fromWallet,
+      expectedToWallet: toWallet,
+      expectedAmount: amount,
+      expectedCurrency: "USDC",
+      expectedChain: chain || "arc_testnet",
+    });
+
+    if (!verification.verified) {
+      return errorResponse(
+        `On-chain verification failed: ${verification.error}`,
+        400
+      );
+    }
+
+    // --- Verification passed — record settlement ---
 
     // Calculate settlement fee
     const settlementFee = calculateSettlementFee(amount, SETTLEMENT_FEE_PERCENT);
@@ -158,6 +174,8 @@ export async function POST(
           chain,
           fee: settlementFee,
           provider: "arc-wallet-client",
+          verifiedOnChain: true,
+          blockNumber: verification.details?.blockNumber?.toString(),
         } as object,
       },
     });
@@ -167,6 +185,7 @@ export async function POST(
       status: "settled",
       transactionHash,
       settlementFee,
+      verifiedOnChain: true,
     });
   } catch (error) {
     console.error("Record settlement error:", error);
