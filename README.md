@@ -179,7 +179,7 @@ Circle API key verification is supported for future Circle Wallets / Paymaster i
 | Feature | Status |
 |---------|--------|
 | API key verification | ✅ Supported (`GET /api/dev/circle/verify`) |
-| Circle Wallets | Not enabled yet |
+| Circle Wallets | ✅ Scaffolded (dev endpoints) |
 | Circle Paymaster | Not enabled yet |
 | Circle Payments | Not enabled yet |
 
@@ -191,6 +191,23 @@ Circle API key verification is supported for future Circle Wallets / Paymaster i
 To verify your Circle API key:
 ```bash
 curl http://localhost:3000/api/dev/circle/verify
+```
+
+## Circle Wallets Service
+
+A server-side Circle Wallets service scaffold exists for managing developer-controlled wallets:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/dev/circle/wallets` | GET | List wallets |
+| `/api/dev/circle/wallets/:id` | GET | Get wallet by ID |
+| `/api/dev/circle/wallets` | POST | Create wallet (dev-only, protected) |
+
+**Dev endpoints are for testing only.** The POST endpoint is protected:
+- In production (`NODE_ENV=production`), wallet creation is disabled unless `CIRCLE_DEV_TOOLS_ENABLED=true`
+- These endpoints are not meant for public users
+- Circle payments and settlement via Circle Wallets are not enabled yet
+- The API key remains server-side only
 ```
 
 ## Demo Accounts
