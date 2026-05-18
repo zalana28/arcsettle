@@ -4,12 +4,22 @@
  * Creates and manages Circle developer-controlled wallets for companies.
  * Uses the @circle-fin/developer-controlled-wallets SDK.
  *
+ * Default blockchain: ARC-TESTNET (Arc Testnet).
+ * If Circle API rejects ARC-TESTNET, a clear error is returned.
+ *
  * IMPORTANT: This module must only be imported in server-side code.
  */
 
 import { prisma } from "@/lib/prisma";
 import { getCircleDeveloperWalletsClient, isCircleSdkConfigured } from "./circleDeveloperWalletsSdk";
 import { randomUUID } from "crypto";
+
+/**
+ * Default blockchain for ArcSettle company wallets.
+ * ARC-TESTNET corresponds to Arc Testnet (chain ID 5042002).
+ */
+const DEFAULT_CIRCLE_BLOCKCHAIN = "ARC-TESTNET";
+const DEFAULT_ACCOUNT_TYPE = "EOA";
 
 export interface CreateCompanyWalletInput {
   companyId: string;
@@ -32,6 +42,8 @@ export interface CompanyWalletResult {
 
 /**
  * Create a Circle developer-controlled wallet for a company.
+ *
+ * Default blockchain is ARC-TESTNET. Override via input.blockchain if needed.
  *
  * Flow:
  * 1. Check if company already has a Circle wallet
@@ -67,15 +79,15 @@ export async function createCompanyCircleWallet(
         walletSetId: company.circleWalletSetId || "",
         address: company.circleWalletAddress || "",
         blockchain: company.circleWalletBlockchain || "",
-        accountType: "EOA",
+        accountType: DEFAULT_ACCOUNT_TYPE,
       },
     };
   }
 
   try {
     const client = getCircleDeveloperWalletsClient();
-    const blockchain = input.blockchain || "ETH-SEPOLIA";
-    const accountType = input.accountType || "EOA";
+    const blockchain = input.blockchain || DEFAULT_CIRCLE_BLOCKCHAIN;
+    const accountType = input.accountType || DEFAULT_ACCOUNT_TYPE;
 
     // Step 1: Create wallet set for the company
     const walletSetResponse = await client.createWalletSet({
@@ -89,17 +101,38 @@ export async function createCompanyCircleWallet(
     }
 
     // Step 2: Create wallet in the wallet set
-    const walletResponse = await client.createWallets({
-      idempotencyKey: randomUUID(),
-      walletSetId: walletSet.id,
-      blockchains: [blockchain as never],
-      count: 1,
-      accountType: accountType as never,
-    });
+    let walletResponse;
+    try {
+      walletResponse = await client.createWallets({
+        idempotencyKey: randomUUID(),
+        walletSetId: walletSet.id,
+        blockchains: [blockchain as never],
+        count: 1,
+        accountType: accountType as never,
+      });
+    } catch (walletError) {
+      const msg = walletError instanceof Error ? walletError.message : String(walletError);
+      // Provide clear error if Arc Testnet is not supported by this Circle account
+      if (
+        msg.toLowerCase().includes("blockchain") ||
+        msg.toLowerCase().includes("not supported") ||
+        msg.toLowerCase().includes("invalid")
+      ) {
+        return {
+          success: false,
+          error:
+            `Arc Testnet (${blockchain}) wallet creation is not supported or not enabled ` +
+            `for this Circle account. Contact Circle support to enable ARC-TESTNET, ` +
+            `or pass a different blockchain (e.g., ETH-SEPOLIA) in the request body. ` +
+            `Original error: ${msg}`,
+        };
+      }
+      throw walletError;
+    }
 
     const wallets = walletResponse.data?.wallets;
     if (!wallets || wallets.length === 0) {
-      return { success: false, error: "Failed to create Circle wallet" };
+      return { success: false, error: "Failed to create Circle wallet — no wallets returned" };
     }
 
     const wallet = wallets[0];

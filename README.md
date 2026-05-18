@@ -268,15 +268,18 @@ Companies can have Circle developer-controlled wallets created in dev/admin mode
 - `CIRCLE_API_KEY` and `CIRCLE_ENTITY_SECRET` must be configured
 - GET endpoint returns stored metadata only (no Circle API call)
 
+**Default blockchain:** `ARC-TESTNET` (Arc Testnet, chain ID 5042002). Circle company wallets are intended for Arc Testnet. You can override by passing `blockchain` in the POST body if needed.
+
 **Stored metadata on Company:**
 - `circleWalletId` — Circle wallet ID
 - `circleWalletSetId` — Circle wallet set ID
 - `circleWalletAddress` — On-chain wallet address
-- `circleWalletBlockchain` — Blockchain (e.g., ETH-SEPOLIA)
+- `circleWalletBlockchain` — Blockchain (e.g., ARC-TESTNET)
 - `circleWalletCreatedAt` — Creation timestamp
 
 **Important:**
 - Circle payments are still not enabled
+- If Circle API rejects ARC-TESTNET, a clear error is returned explaining the blockchain is not enabled for the account
 - The existing `walletAddress` field (MetaMask/WalletConnect) remains unchanged
 - Secrets remain server-side only
 
