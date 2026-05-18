@@ -209,6 +209,28 @@ A server-side Circle Wallets service scaffold exists for managing developer-cont
 - Circle payments and settlement via Circle Wallets are not enabled yet
 - The API key remains server-side only
 
+
+## Circle Entity Secret Setup
+
+Entity secret and ciphertext are required before developer-controlled wallet operations (create, sign, transfer):
+
+| Variable | Purpose |
+|----------|---------|
+| `CIRCLE_ENTITY_SECRET` | Raw 32-byte hex secret (server-only, NEVER expose) |
+| `CIRCLE_ENTITY_SECRET_CIPHERTEXT` | RSA-encrypted form (manual fallback if not using SDK) |
+
+**Configuration status endpoint:**
+```bash
+curl http://localhost:3000/api/dev/circle/entity-secret/status
+```
+
+**Current status:** This project checks entity secret configuration. If using the SDK, ciphertext is generated automatically. Otherwise, generate it using Circle's documented RSA encryption flow.
+
+**Important:**
+- Entity secrets must remain server-side — never exposed to frontend or logs
+- No Circle payments are enabled yet
+- Existing settlement modes (mock + Arc wallet-signed) remain unchanged
+
 ## Circle SDK Integration
 
 The official `@circle-fin/developer-controlled-wallets` SDK is integrated for future wallet operations:

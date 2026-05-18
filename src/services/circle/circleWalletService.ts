@@ -83,10 +83,18 @@ export async function getWallet(
  * Create a new developer-controlled wallet.
  *
  * Requires a valid walletSetId. If not provided, uses the entity's default.
+ *
+ * TODO: Developer-controlled wallet creation requires entitySecretCiphertext
+ * in the request body. Once entity secret setup is complete (Phase 4C),
+ * include entitySecretCiphertext from getEntitySecretCiphertext() in the
+ * request payload when calling this endpoint.
  */
 export async function createWallet(
   input: CircleWalletCreateInput
 ): Promise<CircleWalletServiceResult<CircleWallet[]>> {
+  // TODO: Include entitySecretCiphertext in the request body:
+  // import { getEntitySecretCiphertext } from "./entitySecretService";
+  // const payload = { ...input, entitySecretCiphertext: getEntitySecretCiphertext() };
   try {
     const res = await circleRequest("/v1/w3s/developer/wallets", {
       method: "POST",
