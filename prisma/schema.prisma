@@ -92,6 +92,14 @@ model Transaction {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  // Circle transaction metadata
+  circleTransactionId     String?
+  circleTransactionStatus String?
+  circleTransactionType   String?
+  circleWalletId          String?
+  circleSourceAddress     String?
+  circleDestinationAddress String?
+
   invoice Invoice @relation(fields: [invoiceId], references: [id])
 
   @@map("transactions")

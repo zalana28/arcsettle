@@ -283,6 +283,26 @@ Companies can have Circle developer-controlled wallets created in dev/admin mode
 - The existing `walletAddress` field (MetaMask/WalletConnect) remains unchanged
 - Secrets remain server-side only
 
+## Circle Transaction Service
+
+Circle transfer transactions can be created via dev endpoints for testing:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/dev/circle/transactions/estimate` | POST | Estimate transfer fee |
+| `/api/dev/circle/transactions/transfer` | POST | Create transfer transaction |
+| `/api/dev/circle/transactions/:id` | GET | Get transaction status |
+| `/api/dev/invoices/:id/circle-transfer-preview` | POST | Preview invoice transfer (no execution) |
+| `/api/dev/invoices/:id/circle-transfer` | POST | Execute Circle transfer for invoice |
+
+**Important:**
+- All POST endpoints require `CIRCLE_DEV_TOOLS_ENABLED=true`
+- Circle transactions do **not** mark invoices as settled yet
+- Invoice moves to `processing` status when a transfer is created
+- Settlement confirmation will be handled in a later webhook/polling phase
+- Existing mock and wallet-signed Arc settlement flows are unchanged
+- Default blockchain is `ARC-TESTNET`
+
 ## Demo Accounts
 
 After running `npx prisma db seed`:
