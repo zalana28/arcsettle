@@ -254,6 +254,32 @@ The official `@circle-fin/developer-controlled-wallets` SDK is integrated for fu
 - Circle wallet creation is not enabled yet
 - Existing settlement modes (mock + Arc wallet-signed) remain unchanged
 
+## Circle Company Wallets
+
+Companies can have Circle developer-controlled wallets created in dev/admin mode:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/dev/companies/:id/circle-wallet` | GET | Get company Circle wallet metadata |
+| `/api/dev/companies/:id/circle-wallet` | POST | Create Circle wallet for company |
+
+**Requirements:**
+- `CIRCLE_DEV_TOOLS_ENABLED=true` is required for wallet creation (POST)
+- `CIRCLE_API_KEY` and `CIRCLE_ENTITY_SECRET` must be configured
+- GET endpoint returns stored metadata only (no Circle API call)
+
+**Stored metadata on Company:**
+- `circleWalletId` — Circle wallet ID
+- `circleWalletSetId` — Circle wallet set ID
+- `circleWalletAddress` — On-chain wallet address
+- `circleWalletBlockchain` — Blockchain (e.g., ETH-SEPOLIA)
+- `circleWalletCreatedAt` — Creation timestamp
+
+**Important:**
+- Circle payments are still not enabled
+- The existing `walletAddress` field (MetaMask/WalletConnect) remains unchanged
+- Secrets remain server-side only
+
 ## Demo Accounts
 
 After running `npx prisma db seed`:
