@@ -20,6 +20,7 @@ export interface CircleWalletCreateInput {
   blockchains?: string[];
   count?: number;
   accountType?: string;
+  entitySecretCiphertext?: string;
 }
 
 export interface CircleWalletServiceResult<T = unknown> {
