@@ -208,7 +208,29 @@ A server-side Circle Wallets service scaffold exists for managing developer-cont
 - These endpoints are not meant for public users
 - Circle payments and settlement via Circle Wallets are not enabled yet
 - The API key remains server-side only
-```
+
+## Circle SDK Integration
+
+The official `@circle-fin/developer-controlled-wallets` SDK is integrated for future wallet operations:
+
+| Component | Status |
+|-----------|--------|
+| SDK installed | ✅ |
+| SDK client helper | ✅ (`getCircleDeveloperWalletsClient()`) |
+| Config status endpoint | ✅ (`GET /api/dev/circle/sdk/status`) |
+| Wallet creation via SDK | Not enabled yet |
+| Transactions via SDK | Not enabled yet |
+
+**Why the SDK?** Circle's entity secret ciphertext is single-use. The SDK generates fresh ciphertext automatically for each sensitive request, so you don't need to manage `CIRCLE_ENTITY_SECRET_CIPHERTEXT` manually.
+
+**Required environment variables:**
+- `CIRCLE_API_KEY` — Circle API key (server-only)
+- `CIRCLE_ENTITY_SECRET` — 32-byte hex entity secret (server-only)
+
+**Important:**
+- Both secrets must remain server-side — never exposed to frontend or logs
+- Circle wallet creation is not enabled yet
+- Existing settlement modes (mock + Arc wallet-signed) remain unchanged
 
 ## Demo Accounts
 
