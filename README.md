@@ -326,3 +326,6 @@ This is an MVP running with **mock settlement**. It is not production financial 
 ## License
 
 MIT
+
+
+<!-- real payment preview rebuild -->
