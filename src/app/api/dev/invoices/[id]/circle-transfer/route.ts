@@ -8,6 +8,9 @@ import { randomUUID } from "crypto";
  *
  * Dev-only: Execute a Circle transfer for an invoice.
  * Does NOT mark invoice as settled — settlement confirmation is handled later.
+ *
+ * IMPORTANT: Transaction row and invoice status are ONLY updated after
+ * Circle transaction creation succeeds. If Circle fails, nothing is persisted.
  */
 export async function POST(
   _request: NextRequest,
@@ -25,106 +28,121 @@ export async function POST(
 
   const { id } = await params;
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
-    include: { seller: true, buyer: true },
-  });
+  try {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: { seller: true, buyer: true },
+    });
 
-  if (!invoice) {
-    return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
-  }
+    if (!invoice) {
+      return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
+    }
 
-  if (invoice.status !== "approved") {
-    return NextResponse.json(
-      { success: false, error: `Invoice must be approved. Current: ${invoice.status}` },
-      { status: 400 }
-    );
-  }
+    if (invoice.status !== "approved") {
+      return NextResponse.json(
+        { success: false, error: `Invoice must be approved. Current: ${invoice.status}` },
+        { status: 400 }
+      );
+    }
 
-  if (!invoice.buyer.circleWalletId) {
-    return NextResponse.json(
-      { success: false, error: "Buyer does not have a Circle wallet" },
-      { status: 400 }
-    );
-  }
+    if (!invoice.buyer.circleWalletId) {
+      return NextResponse.json(
+        { success: false, error: "Buyer does not have a Circle wallet" },
+        { status: 400 }
+      );
+    }
 
-  const destinationAddress = invoice.seller.circleWalletAddress || invoice.seller.walletAddress;
-  if (!destinationAddress) {
-    return NextResponse.json(
-      { success: false, error: "Seller has no destination wallet address" },
-      { status: 400 }
-    );
-  }
+    const destinationAddress = invoice.seller.circleWalletAddress || invoice.seller.walletAddress;
+    if (!destinationAddress) {
+      return NextResponse.json(
+        { success: false, error: "Seller has no destination wallet address" },
+        { status: 400 }
+      );
+    }
 
-  // Create Circle transfer
-  const result = await createCircleTransferTransaction({
-    sourceWalletId: invoice.buyer.circleWalletId,
-    destinationAddress,
-    amount: invoice.amount.toString(),
-    blockchain: "ARC-TESTNET",
-    currency: "USDC",
-    idempotencyKey: randomUUID(),
-  });
-
-  if (!result.success || !result.data) {
-    return NextResponse.json(
-      { success: false, error: result.error || "Circle transfer failed" },
-      { status: 400 }
-    );
-  }
-
-  // Record transaction (status = processing, not settled)
-  await prisma.transaction.create({
-    data: {
-      invoiceId: id,
-      fromWallet: invoice.buyer.circleWalletAddress || invoice.buyer.circleWalletId,
-      toWallet: destinationAddress,
-      amount: Number(invoice.amount),
+    // ─── Step 1: Create Circle transfer ─────────────────────────────────────
+    // If this fails, we do NOT create a Transaction row or change invoice status.
+    const result = await createCircleTransferTransaction({
+      sourceWalletId: invoice.buyer.circleWalletId,
+      destinationAddress,
+      amount: invoice.amount.toString(),
+      blockchain: "ARC-TESTNET",
       currency: "USDC",
-      chain: "arc_testnet",
-      status: "pending",
-      circleTransactionId: result.data.transactionId,
-      circleTransactionStatus: result.data.state,
-      circleTransactionType: result.data.transactionType || "TRANSFER",
-      circleWalletId: invoice.buyer.circleWalletId,
-      circleSourceAddress: result.data.sourceAddress || null,
-      circleDestinationAddress: destinationAddress,
-    },
-  });
+      idempotencyKey: randomUUID(),
+    });
 
-  // Update invoice to processing (not settled)
-  await prisma.invoice.update({
-    where: { id },
-    data: { status: "processing" },
-  });
+    if (!result.success || !result.data) {
+      return NextResponse.json(
+        { success: false, error: result.error || "Circle transfer failed" },
+        { status: result.status || 400 }
+      );
+    }
 
-  // Audit log
-  await prisma.auditLog.create({
-    data: {
-      entityId: id,
-      entity: "invoice",
-      action: "circle_transfer_created",
-      actor: "dev-tools",
-      metadata: {
-        circleTransactionId: result.data.transactionId,
-        state: result.data.state,
-        destinationAddress,
-        amount: invoice.amount.toString(),
-        blockchain: "ARC-TESTNET",
-      } as object,
-    },
-  });
-
-  return NextResponse.json(
-    {
-      success: true,
+    // ─── Step 2: Record transaction ONLY after Circle succeeds ──────────────
+    await prisma.transaction.create({
       data: {
         invoiceId: id,
-        invoiceStatus: "processing",
-        circleTransaction: result.data,
-        note: "Invoice moved to processing. Settlement will be confirmed via webhook/polling in a later phase.",
+        fromWallet: invoice.buyer.circleWalletAddress || invoice.buyer.circleWalletId,
+        toWallet: destinationAddress,
+        amount: Number(invoice.amount),
+        currency: "USDC",
+        chain: "arc_testnet",
+        status: "pending",
+        circleTransactionId: result.data.transactionId,
+        circleTransactionStatus: result.data.state,
+        circleTransactionType: result.data.transactionType || "TRANSFER",
+        circleWalletId: invoice.buyer.circleWalletId,
+        circleSourceAddress: result.data.sourceAddress || null,
+        circleDestinationAddress: destinationAddress,
       },
-    },
-    { status: 201 }
-  );
+    });
+
+    // ─── Step 3: Update invoice to processing (NOT settled) ─────────────────
+    await prisma.invoice.update({
+      where: { id },
+      data: { status: "processing" },
+    });
+
+    // ─── Step 4: Audit log ──────────────────────────────────────────────────
+    await prisma.auditLog.create({
+      data: {
+        entityId: id,
+        entity: "invoice",
+        action: "circle_transfer_created",
+        actor: "dev-tools",
+        metadata: {
+          circleTransactionId: result.data.transactionId,
+          state: result.data.state,
+          destinationAddress,
+          amount: invoice.amount.toString(),
+          blockchain: "ARC-TESTNET",
+        } as object,
+      },
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          invoiceId: id,
+          invoiceStatus: "processing",
+          circleTransaction: result.data,
+          note: "Invoice moved to processing. Settlement will be confirmed via webhook/polling in a later phase.",
+        },
+      },
+      { status: 201 }
+    );
+  } catch (error: unknown) {
+    // Catch unexpected errors (DB failures, unhandled exceptions) without leaking internals
+    const safeMessage =
+      error instanceof Error ? error.message : "An unexpected error occurred";
+
+    // Never expose stack traces or internal details in response
+    console.error("[circle-transfer] Unexpected error for invoice:", id, safeMessage);
+
+    return NextResponse.json(
+      { success: false, error: "An unexpected error occurred during the transfer" },
+      { status: 500 }
+    );
+  }
 }
