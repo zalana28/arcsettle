@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { syncCircleTransactionStatus } from "@/services/circle/circleTransactionService";
 
 /**
@@ -8,13 +9,19 @@ import { syncCircleTransactionStatus } from "@/services/circle/circleTransaction
  * Dev/admin endpoint: Check the Circle transaction status for an invoice
  * and update the invoice/transaction state accordingly.
  *
+ * Authorization:
+ * - Requires CIRCLE_DEV_TOOLS_ENABLED=true (in production)
+ * - Requires a valid session (authenticated user)
+ * - Caller must be buyer or seller on the invoice (or request is rejected 403)
+ *
  * Circle state mapping:
  * - SUCCESS states (COMPLETE, CONFIRMED, etc.) → invoice settled, transaction completed
- * - FAILURE states (FAILED, CANCELLED, etc.) → transaction failed, invoice stays processing
+ * - FAILURE states (FAILED, CANCELLED, etc.) → transaction failed, invoice back to approved
  * - PENDING states (INITIATED, PENDING, etc.) → no change, return current status
  * - UNKNOWN states → no change, return current status
  *
  * Safety:
+ * - If auth fails, no Circle call and no DB changes
  * - If Circle status fetch fails, no DB changes are made
  * - Never exposes API key, entity secret, ciphertext, or raw config
  */
@@ -32,6 +39,15 @@ export async function POST(
     );
   }
 
+  // ─── Authentication ───────────────────────────────────────────────────────
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json(
+      { success: false, error: "Authentication required" },
+      { status: 401 }
+    );
+  }
+
   const { id } = await params;
 
   try {
@@ -45,6 +61,14 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: "Invoice not found" },
         { status: 404 }
+      );
+    }
+
+    // ─── Authorization: caller must be buyer or seller ────────────────────────
+    if (invoice.sellerId !== session.sub && invoice.buyerId !== session.sub) {
+      return NextResponse.json(
+        { success: false, error: "Access denied" },
+        { status: 403 }
       );
     }
 
@@ -133,7 +157,7 @@ export async function POST(
           entityId: id,
           entity: "invoice",
           action: "circle_transfer_confirmed",
-          actor: "dev-tools",
+          actor: session.sub,
           metadata: {
             circleTransactionId: circleTransaction.circleTransactionId,
             circleState,
@@ -180,7 +204,7 @@ export async function POST(
           entityId: id,
           entity: "invoice",
           action: "circle_transfer_failed",
-          actor: "dev-tools",
+          actor: session.sub,
           metadata: {
             circleTransactionId: circleTransaction.circleTransactionId,
             circleState,
