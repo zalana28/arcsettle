@@ -439,13 +439,16 @@ export default function InvoiceDetailPage({
         </div>
       )}
 
-      {/* Processing state */}
+      {/* Processing state with Circle status check */}
       {invoice.status === "processing" && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 mb-6">
           <h3 className="text-lg font-medium text-purple-800 mb-2">Settlement in Progress</h3>
-          <p className="text-sm text-purple-700">
+          <p className="text-sm text-purple-700 mb-4">
             Your invoice is being settled on Arc Testnet. This usually takes a few seconds.
           </p>
+          {invoice.transactions.some((t) => t.status === "pending") && (
+            <CheckCircleStatusButton invoiceId={id} onStatusChecked={fetchInvoice} />
+          )}
         </div>
       )}
 
@@ -630,6 +633,83 @@ function TimelineItem({ label, date }: { label: string; date: string }) {
       <div className="w-2 h-2 rounded-full bg-primary-500" />
       <span className="font-medium text-gray-900">{label}</span>
       <span className="text-gray-500">{new Date(date).toLocaleString()}</span>
+    </div>
+  );
+}
+
+function CheckCircleStatusButton({
+  invoiceId,
+  onStatusChecked,
+}: {
+  invoiceId: string;
+  onStatusChecked: () => void;
+}) {
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<{
+    circleState?: string;
+    stateCategory?: string;
+    note?: string;
+    error?: string;
+  } | null>(null);
+
+  const handleCheck = async () => {
+    setChecking(true);
+    setResult(null);
+    try {
+      const res = await fetch(`/api/dev/invoices/${invoiceId}/check-circle-status`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResult(data.data);
+        // Refresh invoice data after status change
+        onStatusChecked();
+      } else {
+        setResult({ error: data.error || "Failed to check status" });
+      }
+    } catch {
+      setResult({ error: "Network error while checking Circle status" });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={handleCheck}
+        disabled={checking}
+        className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {checking ? "Checking..." : "Check Circle Status"}
+      </button>
+      {result && (
+        <div
+          className={`text-sm p-3 rounded-lg ${
+            result.error
+              ? "bg-red-50 border border-red-200 text-red-700"
+              : result.stateCategory === "success"
+              ? "bg-green-50 border border-green-200 text-green-700"
+              : result.stateCategory === "failure"
+              ? "bg-red-50 border border-red-200 text-red-700"
+              : "bg-yellow-50 border border-yellow-200 text-yellow-700"
+          }`}
+        >
+          {result.error ? (
+            <p>{result.error}</p>
+          ) : (
+            <div className="space-y-1">
+              <p>
+                <strong>Circle State:</strong> {result.circleState || "Unknown"}
+              </p>
+              <p>
+                <strong>Category:</strong> {result.stateCategory || "unknown"}
+              </p>
+              {result.note && <p className="text-xs mt-1">{result.note}</p>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
