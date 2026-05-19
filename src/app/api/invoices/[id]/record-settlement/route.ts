@@ -53,7 +53,10 @@ export async function POST(
       const messages = parsed.error.errors.map(
         (e) => `${e.path.join(".")}: ${e.message}`
       );
-      return errorResponse(`Validation failed: ${messages.join(", ")}`, 422);
+      return errorResponse(
+        `Wallet transaction proof is required for real settlement. Validation failed: ${messages.join(", ")}`,
+        422
+      );
     }
 
     const { transactionHash, fromWallet, toWallet, amount, chain } = parsed.data;
@@ -68,15 +71,27 @@ export async function POST(
       return errorResponse("Invoice not found", 404);
     }
 
-    // Only seller or buyer can record settlement
-    if (invoice.sellerId !== session.sub && invoice.buyerId !== session.sub) {
-      return errorResponse("Access denied", 403);
+    // Only the buyer can record a wallet settlement (they are the payer)
+    if (invoice.buyerId !== session.sub) {
+      return errorResponse(
+        "Only the buyer (payer) can record a wallet settlement",
+        403
+      );
     }
 
     // Invoice must be in approved or processing state
     if (invoice.status !== "approved" && invoice.status !== "processing") {
       return errorResponse(
         `Cannot record settlement for invoice with status: ${invoice.status}`,
+        400
+      );
+    }
+
+    // Amount must match the invoice amount
+    const invoiceAmount = Number(invoice.amount);
+    if (Math.abs(amount - invoiceAmount) > 0.01) {
+      return errorResponse(
+        `Amount mismatch: provided ${amount}, invoice requires ${invoiceAmount}`,
         400
       );
     }
