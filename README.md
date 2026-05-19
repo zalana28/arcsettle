@@ -303,6 +303,37 @@ Circle transfer transactions can be created via dev endpoints for testing:
 - Existing mock and wallet-signed Arc settlement flows are unchanged
 - Default blockchain is `ARC-TESTNET`
 
+## Circle Transaction Status Sync
+
+Circle transfer creation only moves an invoice to `processing`. A separate status sync step confirms whether the Circle transaction completed or failed.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/dev/invoices/:id/check-circle-status` | POST | Check Circle transaction status and update invoice |
+
+**How it works:**
+
+1. When a Circle transfer is created, the invoice moves to `processing` and the transaction is stored with status `pending`.
+2. The status sync endpoint fetches the latest Circle transaction state via the Circle SDK.
+3. Based on the Circle state, it updates the invoice and transaction:
+
+| Circle State | Category | Invoice Action | Transaction Action |
+|--------------|----------|----------------|-------------------|
+| COMPLETE, CONFIRMED, SUCCESS | Success | Mark `settled`, set `settlementDate` + `settlementHash` | Mark `confirmed`, store `txHash` |
+| FAILED, CANCELLED, DENIED, REJECTED | Failure | Return to `approved` (retryable) | Mark `failed` |
+| INITIATED, PENDING, QUEUED, RUNNING | Pending | Keep `processing` | Update `circleTransactionStatus` only |
+| Any other | Unknown | Keep `processing` | Update `circleTransactionStatus` only |
+
+**Safety guarantees:**
+- If the Circle status fetch fails (network error, SDK error), no DB changes are made
+- Duplicate transaction rows are never created
+- The mock settlement flow and wallet-signed Arc settlement flow are unaffected
+- API key, entity secret, ciphertext, and raw Axios config are never returned or logged
+
+**UI:** When an invoice is in `processing` state with a pending Circle transaction, a "Check Circle Status" button appears on the invoice detail page. Clicking it calls the status sync endpoint and refreshes the invoice data.
+
+**Production roadmap:** The final production version should replace this manual check with a Circle webhook subscription or scheduled polling job. This dev endpoint is for testing and admin use during development.
+
 ## Demo Accounts
 
 After running `npx prisma db seed`:

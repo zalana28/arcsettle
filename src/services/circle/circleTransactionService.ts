@@ -432,3 +432,75 @@ export async function getCircleTransactionStatus(
     };
   }
 }
+
+
+
+// ─── Circle State Mapping ─────────────────────────────────────────────────────
+
+const CIRCLE_SUCCESS_STATES = new Set(["COMPLETE", "COMPLETED", "CONFIRMED", "SUCCESS"]);
+const CIRCLE_PENDING_STATES = new Set(["INITIATED", "PENDING", "QUEUED", "RUNNING", "PROCESSING"]);
+const CIRCLE_FAILURE_STATES = new Set(["FAILED", "CANCELLED", "CANCELED", "DENIED", "REJECTED"]);
+
+export type CircleStateCategory = "success" | "pending" | "failure" | "unknown";
+
+/**
+ * Classify a Circle transaction state string into a category.
+ */
+export function classifyCircleState(state: string | undefined | null): CircleStateCategory {
+  if (!state) return "unknown";
+  const upper = state.toUpperCase();
+  if (CIRCLE_SUCCESS_STATES.has(upper)) return "success";
+  if (CIRCLE_PENDING_STATES.has(upper)) return "pending";
+  if (CIRCLE_FAILURE_STATES.has(upper)) return "failure";
+  return "unknown";
+}
+
+// ─── Sync Circle Transaction Status ───────────────────────────────────────────
+
+export interface SyncCircleTransactionInput {
+  invoiceId?: string;
+  transactionId?: string;
+  circleTransactionId: string;
+}
+
+export interface SyncCircleTransactionResult {
+  success: boolean;
+  circleState?: string;
+  stateCategory?: CircleStateCategory;
+  txHash?: string;
+  error?: string;
+  data?: CircleTransactionStatusResult["data"];
+}
+
+/**
+ * Fetch the current Circle transaction status.
+ * Returns a categorized result (success/pending/failure/unknown) with safe fields.
+ * Does NOT perform any DB updates — the caller (API route) handles persistence.
+ */
+export async function syncCircleTransactionStatus(
+  input: SyncCircleTransactionInput
+): Promise<SyncCircleTransactionResult> {
+  if (!input.circleTransactionId) {
+    return { success: false, error: "circleTransactionId is required" };
+  }
+
+  const statusResult = await getCircleTransactionStatus(input.circleTransactionId);
+
+  if (!statusResult.success || !statusResult.data) {
+    return {
+      success: false,
+      error: statusResult.error || "Failed to fetch Circle transaction status",
+    };
+  }
+
+  const circleState = statusResult.data.state;
+  const stateCategory = classifyCircleState(circleState);
+
+  return {
+    success: true,
+    circleState,
+    stateCategory,
+    txHash: statusResult.data.txHash || undefined,
+    data: statusResult.data,
+  };
+}
