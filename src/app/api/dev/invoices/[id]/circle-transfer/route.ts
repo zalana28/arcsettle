@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { createCircleTransferTransaction } from "@/services/circle/circleTransactionService";
 import { randomUUID } from "crypto";
 
+const isDev = process.env.NODE_ENV === "development";
+
 /**
  * POST /api/dev/invoices/:id/circle-transfer
  *
@@ -62,20 +64,50 @@ export async function POST(
 
     // ─── Step 1: Create Circle transfer ─────────────────────────────────────
     // If this fails, we do NOT create a Transaction row or change invoice status.
-    const result = await createCircleTransferTransaction({
+    const transferInput = {
       sourceWalletId: invoice.buyer.circleWalletId,
       destinationAddress,
       amount: invoice.amount.toString(),
       blockchain: "ARC-TESTNET",
       currency: "USDC",
       idempotencyKey: randomUUID(),
-    });
+    };
+
+    if (isDev) {
+      console.log("[circle-transfer:start]", {
+        invoiceId: id,
+        walletId: transferInput.sourceWalletId,
+        destinationAddress: transferInput.destinationAddress,
+        amount: transferInput.amount,
+        blockchain: transferInput.blockchain,
+        currency: transferInput.currency,
+        hasTokenId: false,
+      });
+    }
+
+    const result = await createCircleTransferTransaction(transferInput);
 
     if (!result.success || !result.data) {
+      if (isDev) {
+        console.error("[circle-transfer:sdk-error]", {
+          invoiceId: id,
+          errorMessage: result.error,
+          status: result.status,
+        });
+      }
       return NextResponse.json(
         { success: false, error: result.error || "Circle transfer failed" },
         { status: result.status || 400 }
       );
+    }
+
+    if (isDev) {
+      console.log("[circle-transfer:payload-summary]", {
+        invoiceId: id,
+        circleTransactionId: result.data.transactionId,
+        state: result.data.state,
+        blockchain: result.data.blockchain,
+      });
     }
 
     // ─── Step 2: Record transaction ONLY after Circle succeeds ──────────────
@@ -137,8 +169,13 @@ export async function POST(
     const safeMessage =
       error instanceof Error ? error.message : "An unexpected error occurred";
 
-    // Never expose stack traces or internal details in response
-    console.error("[circle-transfer] Unexpected error for invoice:", id, safeMessage);
+    // Dev-only: log safe error details (never secrets, auth headers, or config)
+    if (isDev) {
+      console.error("[circle-transfer:sdk-error]", {
+        invoiceId: id,
+        errorMessage: safeMessage,
+      });
+    }
 
     return NextResponse.json(
       { success: false, error: "An unexpected error occurred during the transfer" },
