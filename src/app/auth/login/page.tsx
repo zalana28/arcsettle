@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+const DEMO_ACCOUNTS = [
+  { label: "Seller", email: "seller@arcsettle.dev", password: "password123" },
+  { label: "Buyer", email: "buyer@arcsettle.dev", password: "password123" },
+];
+
 export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
@@ -35,6 +40,11 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fillDemo = (email: string, password: string) => {
+    setForm({ email, password });
+    setError("");
   };
 
   return (
@@ -100,6 +110,50 @@ export default function LoginPage() {
             </Link>
           </p>
         </form>
+
+        {/* Demo Accounts */}
+        <div className="mt-6 bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+            Demo Accounts
+          </h2>
+          <div className="space-y-2">
+            {DEMO_ACCOUNTS.map((account) => (
+              <button
+                key={account.email}
+                type="button"
+                onClick={() => fillDemo(account.email, account.password)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-primary-50 border border-gray-200 hover:border-primary-200 rounded-lg transition-colors text-left group"
+              >
+                <div>
+                  <span className="text-sm font-medium text-gray-900 group-hover:text-primary-700">
+                    {account.label}
+                  </span>
+                  <span className="text-xs text-gray-500 ml-2">{account.email}</span>
+                </div>
+                <span className="text-xs text-gray-400 group-hover:text-primary-500">
+                  Click to fill
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Demo Mode Note */}
+        <div className="mt-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
+          <h3 className="text-xs font-semibold text-blue-800 uppercase tracking-wide mb-2">
+            Demo Flow
+          </h3>
+          <ol className="text-xs text-blue-700 space-y-1 list-decimal list-inside">
+            <li>Create an invoice as the <strong>Seller</strong></li>
+            <li>Log out, then approve it as the <strong>Buyer</strong></li>
+            <li>Settle the invoice (mock on-chain settlement)</li>
+            <li>View the settlement receipt &amp; transaction details</li>
+          </ol>
+          <p className="text-xs text-blue-500 mt-2">
+            No real funds are transferred. This demo uses mock settlement.
+          </p>
+        </div>
       </div>
     </div>
   );
