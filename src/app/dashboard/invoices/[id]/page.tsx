@@ -74,6 +74,7 @@ export default function InvoiceDetailPage({
   const chainId = useChainId();
 
   const realSettlementEnabled = isRealArcSettlementEnabled();
+  const mockSettlementEnabled = process.env.NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT !== "false";
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -352,16 +353,36 @@ export default function InvoiceDetailPage({
               arcTxHash={arcTxHash}
               actionLoading={actionLoading}
               onSettle={() => setShowConfirmModal(true)}
-              onMockSettle={handleMockSettle}
+              onMockSettle={mockSettlementEnabled ? handleMockSettle : undefined}
+              mockSettlementEnabled={mockSettlementEnabled}
             />
+          ) : mockSettlementEnabled ? (
+            <div>
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-800 font-medium">
+                  Demo mode: no wallet transaction will be sent. This uses mock settlement for demonstration only.
+                </p>
+              </div>
+              <button
+                onClick={handleMockSettle}
+                disabled={actionLoading}
+                className="px-6 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50"
+              >
+                {actionLoading ? "Settling..." : "Demo Mock Settlement"}
+              </button>
+            </div>
           ) : (
-            <button
-              onClick={handleMockSettle}
-              disabled={actionLoading}
-              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {actionLoading ? "Settling..." : "Settle Invoice"}
-            </button>
+            <div>
+              <p className="text-sm text-gray-600 mb-3">
+                Connect your wallet to settle this invoice on-chain.
+              </p>
+              <button
+                disabled
+                className="px-6 py-2.5 bg-gray-400 text-white rounded-lg font-medium cursor-not-allowed opacity-60"
+              >
+                Connect wallet before settlement
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -556,6 +577,7 @@ function RealSettlementSection({
   actionLoading,
   onSettle,
   onMockSettle,
+  mockSettlementEnabled,
 }: {
   walletError: string | null;
   disabledReasons: string[];
@@ -563,7 +585,8 @@ function RealSettlementSection({
   arcTxHash: string | null;
   actionLoading: boolean;
   onSettle: () => void;
-  onMockSettle: () => void;
+  onMockSettle?: () => void;
+  mockSettlementEnabled: boolean;
 }) {
   if (arcStatus === "complete") {
     return (
@@ -612,17 +635,24 @@ function RealSettlementSection({
         >
           {actionLoading ? "Processing..." : "Pay with Connected Wallet"}
         </button>
-        <button
-          onClick={onMockSettle}
-          disabled={actionLoading}
-          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          {actionLoading ? "Settling..." : "Settle (Mock)"}
-        </button>
+        {mockSettlementEnabled && onMockSettle && (
+          <button
+            onClick={onMockSettle}
+            disabled={actionLoading}
+            className="px-6 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50"
+          >
+            {actionLoading ? "Settling..." : "Demo Mock Settlement"}
+          </button>
+        )}
       </div>
       <p className="text-xs text-gray-500">
         &quot;Pay with Connected Wallet&quot; executes a real USDC transfer on Arc Testnet.
       </p>
+      {mockSettlementEnabled && (
+        <p className="text-xs text-amber-600">
+          &quot;Demo Mock Settlement&quot; is for demonstration only — no real transaction is sent.
+        </p>
+      )}
     </div>
   );
 }
