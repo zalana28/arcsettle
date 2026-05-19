@@ -394,6 +394,56 @@ npx prisma studio   # Visual database browser
 
 ---
 
+## Security Notes: Settlement Mode Safety
+
+ArcSettle enforces clear separation between demo/mock settlement and real wallet settlement:
+
+### Mock Settlement (Demo Only)
+
+- Mock settlement (`/api/invoices/:id/settle`) is **only allowed** when `SETTLEMENT_PROVIDER=mock` AND mock mode is explicitly enabled
+- In **production** (`NODE_ENV=production`): requires `ENABLE_MOCK_SETTLEMENT=true` — disabled by default
+- In **development**: allowed by default, can be disabled with `ENABLE_MOCK_SETTLEMENT=false`
+- The frontend labels mock settlement as **"Demo Mock Settlement"** with a clear warning that no real transaction is sent
+- Mock settlement generates simulated transaction hashes — no real funds move
+
+### Real Wallet Settlement (Transaction Proof Required)
+
+- The `/api/invoices/:id/record-settlement` endpoint requires **all** of the following:
+  - Authenticated user who is the **buyer** (payer) of the invoice
+  - Valid `transactionHash` (0x-prefixed, 64 hex chars)
+  - Valid `fromWallet` matching the buyer's wallet address on record
+  - Valid `toWallet` matching the seller's wallet address on record
+  - `amount` matching the invoice amount
+  - `chain` identifier
+- On-chain verification is performed: the backend fetches the transaction receipt and verifies the Transfer event matches expected from/to/amount
+- If any validation fails, settlement is rejected
+
+### Circle Settlement (Status Confirmation Required)
+
+- Circle settlement only marks an invoice as settled after Circle reports status `COMPLETE`, `CONFIRMED`, or `SUCCESS`
+- The manual "Check Circle Status" endpoint polls Circle and updates the invoice only on confirmed success
+- Circle flow does not bypass wallet proof requirements — it uses Circle's own verification
+
+### Production Configuration
+
+For production deployments, set:
+
+```env
+SETTLEMENT_PROVIDER="mock"             # or "arc-wallet" for real settlement
+ENABLE_MOCK_SETTLEMENT="false"         # Disable mock settlement in production
+NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT="false"  # Hide mock button in frontend
+NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT="true"  # Enable real wallet settlement UI
+```
+
+| Variable | Purpose | Production Value |
+|----------|---------|-----------------|
+| `ENABLE_MOCK_SETTLEMENT` | Backend: allow/deny mock settle endpoint | `false` |
+| `NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT` | Frontend: show/hide mock settle button | `false` |
+| `NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT` | Frontend: show real wallet settlement UI | `true` |
+| `SETTLEMENT_PROVIDER` | Backend: which provider executes settlement | `arc-wallet` |
+
+---
+
 ## Disclaimer
 
 This is an MVP running with **mock settlement**. It is not production financial software. No real funds are transferred. The mock provider generates simulated transaction hashes for demonstration purposes only.
