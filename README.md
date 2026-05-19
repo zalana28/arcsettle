@@ -4,6 +4,40 @@ A production-ready MVP for settling B2B invoices using USDC on Arc Testnet. Comp
 
 ---
 
+## Live Demo
+
+> **Coming soon** — A hosted preview will be available at `https://arcsettle.vercel.app`
+>
+> In the meantime, run locally with `npm run dev` after setup (see [Local Setup](#local-setup)).
+
+---
+
+## Demo Accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| Seller | `seller@arcsettle.dev` | `password123` |
+| Buyer | `buyer@arcsettle.dev` | `password123` |
+
+These accounts are created by `npx prisma db seed`. The login page includes quick-fill buttons so you can sign in with one click.
+
+---
+
+## Demo Flow
+
+Follow these steps to experience the full invoice lifecycle:
+
+1. **Sign in as Seller** — Use `seller@arcsettle.dev` / `password123`
+2. **Create an invoice** — Go to Invoices → New Invoice, select the Buyer company, enter an amount
+3. **Sign out, then sign in as Buyer** — Use `buyer@arcsettle.dev` / `password123`
+4. **Approve the invoice** — Open the pending invoice and click Approve
+5. **Settle the invoice** — Click Settle Invoice (uses mock on-chain settlement)
+6. **View the receipt** — See settlement confirmation, transaction hash, and fee breakdown
+
+> No real funds are transferred. The mock provider generates simulated transaction hashes for demonstration purposes.
+
+---
+
 ## Overview
 
 ArcSettle is a B2B invoice settlement portal where companies can register, create invoices, and settle payments using USDC on Arc Testnet. The current implementation uses a mock settlement provider, but the service layer is architected so that real Circle/Arc integration can be swapped in without changing the core workflow.
@@ -333,17 +367,6 @@ Circle transfer creation only moves an invoice to `processing`. A separate statu
 **UI:** When an invoice is in `processing` state with a pending Circle transaction, a "Check Circle Status" button appears on the invoice detail page. Clicking it calls the status sync endpoint and refreshes the invoice data.
 
 **Production roadmap:** The final production version should replace this manual check with a Circle webhook subscription or scheduled polling job. This dev endpoint is for testing and admin use during development.
-
-## Demo Accounts
-
-After running `npx prisma db seed`:
-
-| Role | Email | Password |
-|------|-------|----------|
-| Seller | `seller@arcsettle.dev` | `password123` |
-| Buyer | `buyer@arcsettle.dev` | `password123` |
-
-The seed creates 3 invoices (pending, approved, settled) and a confirmed transaction record.
 
 ## Useful Commands
 
