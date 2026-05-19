@@ -200,6 +200,9 @@ function validateTransferInput(input: CircleTransferInput): string | null {
 
 /**
  * Estimate transfer fee for a Circle transaction.
+ *
+ * Circle SDK v10 `estimateTransferFee` expects `amount` (not `amounts`)
+ * as an array of string amounts.
  */
 export async function estimateCircleTransferFee(
   input: CircleTransferInput
@@ -215,11 +218,10 @@ export async function estimateCircleTransferFee(
     const client = getCircleDeveloperWalletsClient();
 
     const response = await client.estimateTransferFee({
-      amounts: [input.amount],
+      amount: [input.amount],
       destinationAddress: input.destinationAddress,
       walletId: input.sourceWalletId,
-      tokenId: input.tokenId,
-      blockchain: (input.blockchain || DEFAULT_BLOCKCHAIN) as never,
+      ...(input.tokenId ? { tokenId: input.tokenId } : {}),
     } as never);
 
     return { success: true, data: response.data };
@@ -232,6 +234,14 @@ export async function estimateCircleTransferFee(
 
 /**
  * Create a Circle transfer transaction from a developer-controlled wallet.
+ *
+ * IMPORTANT: The Circle SDK v10 `createTransaction` method expects:
+ * - `amount` (not `amounts`) — array of string amounts
+ * - `fee` — object with `{ type: 'level', config: { feeLevel: 'MEDIUM' } }`
+ *   The SDK internally destructures `fee` and spreads `fee.config`.
+ *   Passing `feeLevel` as a flat property causes:
+ *   "Cannot read properties of undefined (reading 'config')"
+ * - `walletId` + `tokenId` OR `walletAddress` + `tokenAddress` + `blockchain`
  */
 export async function createCircleTransferTransaction(
   input: CircleTransferInput
@@ -245,19 +255,105 @@ export async function createCircleTransferTransaction(
 
   const blockchain = input.blockchain || DEFAULT_BLOCKCHAIN;
 
+  // ─── Stage 1: Get SDK client ──────────────────────────────────────────────
+  let client: ReturnType<typeof getCircleDeveloperWalletsClient>;
   try {
-    const client = getCircleDeveloperWalletsClient();
+    client = getCircleDeveloperWalletsClient();
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Failed to initialize Circle SDK client";
+    if (process.env.NODE_ENV === "development") {
+      console.error("[circle-transfer:sdk-error] Client init failed:", msg);
+    }
+    return { success: false, error: sanitizeErrorMessage(msg) };
+  }
 
-    const response = await client.createTransaction({
-      idempotencyKey: input.idempotencyKey || randomUUID(),
-      amounts: [input.amount],
-      destinationAddress: input.destinationAddress,
-      walletId: input.sourceWalletId,
-      tokenId: input.tokenId || undefined,
-      blockchain: blockchain as never,
-      feeLevel: "MEDIUM" as never,
-    } as never);
+  // ─── Stage 2: Build SDK payload ──────────────────────────────────────────
+  // Circle SDK v10 createTransaction requires `fee` as structured object
+  // and `amount` (not `amounts`) as the field name.
+  const sdkPayload = {
+    idempotencyKey: input.idempotencyKey || randomUUID(),
+    amount: [input.amount],
+    destinationAddress: input.destinationAddress,
+    walletId: input.sourceWalletId,
+    fee: {
+      type: "level" as const,
+      config: {
+        feeLevel: "MEDIUM" as const,
+      },
+    },
+    // Token identification: use tokenId if provided, otherwise omit
+    // (SDK requires tokenId when using walletId-based transfers)
+    ...(input.tokenId ? { tokenId: input.tokenId } : {}),
+  };
 
+  if (process.env.NODE_ENV === "development") {
+    console.log("[circle-transfer:start]", {
+      walletId: sdkPayload.walletId,
+      destinationAddress: sdkPayload.destinationAddress,
+      amount: sdkPayload.amount[0],
+      blockchain,
+      currency: input.currency || "USDC",
+      hasTokenId: !!input.tokenId,
+    });
+  }
+
+  // ─── Stage 3: Execute SDK call ────────────────────────────────────────────
+  let response: Awaited<ReturnType<typeof client.createTransaction>>;
+  try {
+    response = await client.createTransaction(sdkPayload as never);
+  } catch (error: unknown) {
+    // The SDK may throw internally (e.g., missing fields, API errors).
+    // Catch ALL errors here so we never propagate raw SDK errors.
+    const errorMessage = error instanceof Error ? error.message : String(error || "");
+
+    if (process.env.NODE_ENV === "development") {
+      console.error("[circle-transfer:sdk-error]", {
+        errorMessage: sanitizeErrorMessage(errorMessage),
+        walletId: sdkPayload.walletId,
+        destinationAddress: sdkPayload.destinationAddress,
+        amount: sdkPayload.amount[0],
+        blockchain,
+        hasTokenId: !!input.tokenId,
+      });
+    }
+
+    // Detect the specific "Cannot read properties of undefined" pattern
+    // which indicates an SDK internal error (payload shape mismatch)
+    if (errorMessage.includes("Cannot read properties of undefined")) {
+      return {
+        success: false,
+        error:
+          "Circle transfer failed. Circle SDK returned an internal error while creating the transaction. " +
+          "Check token/blockchain payload.",
+        status: 400,
+      };
+    }
+
+    // Use safe error parsing for all other SDK errors
+    const parsed = parseCircleError(error);
+    const friendly = matchCircleErrorPattern(parsed.message);
+
+    if (friendly) {
+      return { success: false, error: friendly, status: parsed.status };
+    }
+
+    if (
+      parsed.message.toLowerCase().includes("blockchain") ||
+      parsed.message.toLowerCase().includes("not supported") ||
+      parsed.message.toLowerCase().includes("not enabled")
+    ) {
+      return {
+        success: false,
+        error: `Circle transaction creation on ${blockchain} is not available. Please verify the blockchain is supported.`,
+        status: parsed.status,
+      };
+    }
+
+    return { success: false, error: parsed.message || "Circle transfer failed", status: parsed.status };
+  }
+
+  // ─── Stage 4: Parse response ──────────────────────────────────────────────
+  try {
     const responseData = response.data as Record<string, unknown> | undefined;
     const tx = (responseData?.transaction || responseData) as Record<string, unknown> | undefined;
 
@@ -278,27 +374,11 @@ export async function createCircleTransferTransaction(
       },
     };
   } catch (error: unknown) {
-    const parsed = parseCircleError(error);
-    const friendly = matchCircleErrorPattern(parsed.message);
-
-    if (friendly) {
-      return { success: false, error: friendly, status: parsed.status };
+    const msg = error instanceof Error ? error.message : "Failed to parse Circle response";
+    if (process.env.NODE_ENV === "development") {
+      console.error("[circle-transfer:sdk-error] Response parsing failed:", sanitizeErrorMessage(msg));
     }
-
-    // Check for blockchain-related errors specifically
-    if (
-      parsed.message.toLowerCase().includes("blockchain") ||
-      parsed.message.toLowerCase().includes("not supported") ||
-      parsed.message.toLowerCase().includes("not enabled")
-    ) {
-      return {
-        success: false,
-        error: `Circle transaction creation on ${blockchain} is not available. Please verify the blockchain is supported.`,
-        status: parsed.status,
-      };
-    }
-
-    return { success: false, error: parsed.message || "Circle transfer failed", status: parsed.status };
+    return { success: false, error: "Circle transfer succeeded but response could not be parsed" };
   }
 }
 
