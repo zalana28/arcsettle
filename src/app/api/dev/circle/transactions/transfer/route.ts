@@ -19,7 +19,19 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const result = await createCircleTransferTransaction(body);
-    return NextResponse.json(result, { status: result.success ? 201 : 400 });
+
+    // Use the status from Circle error parsing if available, otherwise default
+    const httpStatus = result.success ? 201 : result.status || 400;
+
+    // Only return safe fields — never forward raw error internals
+    return NextResponse.json(
+      {
+        success: result.success,
+        data: result.data || undefined,
+        error: result.error || undefined,
+      },
+      { status: httpStatus }
+    );
   } catch {
     return NextResponse.json({ success: false, error: "Invalid request body" }, { status: 400 });
   }
