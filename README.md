@@ -171,40 +171,24 @@ SETTLEMENT_PROVIDER=mock        # Default — fake tx hashes
 SETTLEMENT_PROVIDER=arc-wallet  # Validates but does not execute yet
 ```
 
-## Real Arc Settlement (Experimental)
+## Real Arc Settlement
 
-A client-side wallet-signed USDC settlement flow is available behind a feature flag:
+The "Pay with Connected Wallet" button is shown automatically when:
+- The buyer has a connected wallet on Arc Testnet (chain ID 5042002)
+- The connected wallet matches the buyer's saved wallet address
+- Buyer and seller wallets are different
+- The invoice is in `approved` status
 
-```env
-NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT=true
-```
+No feature flag is required to show the wallet settlement UI. The button appears based on actual wallet safety conditions.
 
-**Disabled by default.** When enabled:
-- The buyer sees a "Pay with Connected Wallet" button on approved invoices
-- Requires a connected wallet on Arc Testnet (chain ID 5042002)
-- Executes a real ERC-20 USDC transfer from buyer → seller
+When the buyer clicks "Pay with Connected Wallet":
+- The frontend executes a real ERC-20 USDC transfer from buyer → seller
 - Uses the Arc Testnet USDC interface at `0x3600000000000000000000000000000000000000`
 - After on-chain confirmation, the frontend calls `/api/invoices/:id/record-settlement` to persist the result
-- The mock "Settle Invoice" button remains available as a fallback
 
-**Backend verification:** The `/record-settlement` endpoint now includes on-chain receipt verification. It fetches the transaction receipt from Arc Testnet RPC, decodes the ERC-20 Transfer event, and verifies that from/to/amount match the expected values before marking the invoice as settled. Production use still requires additional monitoring and compliance checks (e.g., block confirmation depth, transaction age limits, rate limiting).
+**Backend verification:** The `/record-settlement` endpoint includes on-chain receipt verification. It fetches the transaction receipt from Arc Testnet RPC, decodes the ERC-20 Transfer event, and verifies that from/to/amount match the expected values before marking the invoice as settled. Production use still requires additional monitoring and compliance checks (e.g., block confirmation depth, transaction age limits, rate limiting).
 
-## Testing Real Arc Settlement in Preview
-
-For Vercel Preview deployments or local testing:
-
-| Environment | `NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT` |
-|-------------|------------------------------------------|
-| **Production** | `false` (default, mock only) |
-| **Preview** | `true` (enables real wallet signing) |
-
-When enabled in Preview:
-- Buyer must have a connected wallet on Arc Testnet (chain ID 5042002)
-- Connected wallet must match the saved buyer wallet address
-- Buyer wallet needs Arc Testnet USDC balance to cover the invoice amount
-- A confirmation modal shows transaction details before signing
-- After on-chain confirmation, the backend verifies the transaction receipt before recording settlement
-- An "Experimental" banner is shown to indicate real mode is active
+> **Note:** `NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT` is no longer required to show the wallet settlement button. The variable is retained for backward compatibility but has no effect on the settlement UI.
 
 ## Circle API Integration Status
 
@@ -453,15 +437,17 @@ For production deployments, set:
 SETTLEMENT_PROVIDER="mock"             # or "arc-wallet" for real settlement
 ENABLE_MOCK_SETTLEMENT="false"         # Disable mock settlement in production
 NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT="false"  # Hide mock button in frontend
-NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT="true"  # Enable real wallet settlement UI
+CIRCLE_DEV_TOOLS_ENABLED="false"       # Disable Circle dev endpoints
 ```
 
 | Variable | Purpose | Production Value |
 |----------|---------|-----------------|
 | `ENABLE_MOCK_SETTLEMENT` | Backend: allow/deny mock settle endpoint | `false` |
 | `NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT` | Frontend: show/hide mock settle button | `false` |
-| `NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT` | Frontend: show real wallet settlement UI | `true` |
 | `SETTLEMENT_PROVIDER` | Backend: which provider executes settlement | `arc-wallet` |
+| `CIRCLE_DEV_TOOLS_ENABLED` | Backend: enable/disable Circle dev endpoints | `false` |
+
+> **Note:** `NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT` is no longer needed. The real wallet settlement button is shown automatically when wallet conditions are met.
 
 ---
 

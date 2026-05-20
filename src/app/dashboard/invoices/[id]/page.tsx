@@ -6,7 +6,6 @@ import { useAccount, useChainId } from "wagmi";
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from "@/lib/constants";
 import { ARC_TESTNET_CHAIN_ID } from "@/lib/arc";
 import {
-  isRealArcSettlementEnabled,
   validateWalletForSettlement,
   executeUsdcTransfer,
   recordSettlementOnBackend,
@@ -73,7 +72,6 @@ export default function InvoiceDetailPage({
   const { address: connectedAddress } = useAccount();
   const chainId = useChainId();
 
-  const realSettlementEnabled = isRealArcSettlementEnabled();
   const mockSettlementEnabled = process.env.NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT !== "false";
 
   useEffect(() => {
@@ -234,7 +232,6 @@ export default function InvoiceDetailPage({
       buyerWalletAddress: invoice.buyer.walletAddress || null,
       walletsMatch: buyerWalletMatchesSaved,
       chain: chainId,
-      realSettlementEnabled,
       mockSettlementEnabled,
     });
   }
@@ -246,14 +243,6 @@ export default function InvoiceDetailPage({
           ← Back to Invoices
         </Link>
       </div>
-
-      {/* Experimental banner */}
-      {realSettlementEnabled && (
-        <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-sm">
-          <strong>Experimental:</strong> Real Arc Testnet settlement is enabled. This will request a
-          wallet signature and submit a USDC transfer on Arc Testnet.
-        </div>
-      )}
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
@@ -379,7 +368,7 @@ export default function InvoiceDetailPage({
                 Settle Invoice
               </button>
             </div>
-          ) : realSettlementEnabled && isBuyer ? (
+          ) : isBuyer && buyerWalletConnected && buyerWalletSaved && buyerWalletMatchesSaved ? (
             <RealSettlementSection
               walletError={walletValidationError}
               disabledReasons={getDisabledReasons()}
@@ -416,11 +405,6 @@ export default function InvoiceDetailPage({
                     {actionLoading ? "Settling..." : "Demo Mock Settlement"}
                   </button>
                 </div>
-              )}
-              {!mockSettlementEnabled && !realSettlementEnabled && (
-                <p className="text-sm text-gray-500">
-                  Wallet settlement requires real Arc settlement to be enabled.
-                </p>
               )}
             </div>
           ) : mockSettlementEnabled ? (
