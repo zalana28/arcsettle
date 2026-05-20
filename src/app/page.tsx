@@ -15,7 +15,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
-              <span className="text-xl font-bold">Arc<span className="text-indigo-400">Settle</span></span>
+              <span className="text-xl font-bold">Sett<span className="text-indigo-400">lio</span></span>
               <nav className="hidden md:flex items-center gap-6">
                 <a href="#how-it-works" className="text-sm text-gray-400 hover:text-white transition-colors">How it Works</a>
                 <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
@@ -46,13 +46,13 @@ export default function LandingPage() {
                 Built for USDC settlement on Arc Testnet
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-                B2B invoice settlement,{" "}
+                Settle B2B invoices{" "}
                 <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent">
-                  settled with USDC on Arc.
+                  with USDC on Arc.
                 </span>
               </h1>
               <p className="text-lg text-gray-400 mb-8 max-w-lg">
-                Create invoices, approve payments, settle with connected wallets, and generate verifiable settlement receipts for cross-border B2B workflows.
+                Create invoices, approve payments, pay with connected wallets, and generate verifiable settlement receipts on Arc Testnet.
               </p>
               <div className="flex flex-wrap gap-4">
                 <Link href="/auth/login" className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition-all hover:shadow-lg hover:shadow-indigo-500/25">
@@ -301,7 +301,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/5 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-gray-500">ArcSettle — USDC invoice settlement MVP on Arc Testnet.</p>
+          <p className="text-sm text-gray-500">Settlio — B2B invoice settlement with USDC on Arc Testnet.</p>
           <div className="flex items-center gap-6">
             <a href="https://github.com/zalana28/arcsettle" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-500 hover:text-white transition-colors">GitHub</a>
             <Link href="/auth/login" className="text-sm text-gray-500 hover:text-white transition-colors">Launch App</Link>

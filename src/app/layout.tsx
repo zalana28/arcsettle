@@ -3,8 +3,8 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ArcSettle - Cross-Border B2B Invoice Settlement",
-  description: "Settle B2B invoices on Arc Testnet with USDC",
+  title: "Settlio — B2B Invoice Settlement with USDC on Arc",
+  description: "Settle B2B invoices with USDC on Arc Testnet. Connected-wallet payments, on-chain receipts, and verifiable settlement.",
 };
 
 export default function RootLayout({

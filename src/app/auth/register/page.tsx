@@ -52,7 +52,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            Arc<span className="text-primary-600">Settle</span>
+            Sett<span className="text-primary-600">lio</span>
           </h1>
           <p className="text-gray-500 mt-2">Register your company</p>
         </div>
