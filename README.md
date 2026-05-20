@@ -6,9 +6,7 @@ ArcSettle is a demo-ready B2B invoice settlement MVP using USDC on Arc Testnet. 
 
 ## Live Demo
 
-> **Live Demo:** `<YOUR_VERCEL_URL_HERE>`
->
-> Replace this with the current production Vercel URL.
+> **Live Demo:** https://arcsettle-three.vercel.app/
 
 ---
 
