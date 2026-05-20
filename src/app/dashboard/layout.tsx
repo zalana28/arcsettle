@@ -60,7 +60,7 @@ export default function DashboardLayout({
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
               <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-                Arc<span className="text-primary-600">Settle</span>
+                Sett<span className="text-primary-600">lio</span>
               </Link>
               <nav className="hidden md:flex gap-1">
                 {navItems.map((item) => (

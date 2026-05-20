@@ -1,6 +1,8 @@
-# ArcSettle — Cross-Border B2B Invoice Settlement on Arc Testnet
+# Settlio — B2B Invoice Settlement with USDC on Arc Testnet
 
-ArcSettle is a demo-ready B2B invoice settlement MVP using USDC on Arc Testnet. It supports invoice creation, buyer approval, connected-wallet settlement, settlement receipts, and Circle-powered developer wallet scaffolding.
+Settlio is a demo-ready B2B invoice settlement MVP using USDC on Arc Testnet. It supports invoice creation, buyer approval, connected-wallet settlement, settlement receipts, and Circle-powered developer wallet scaffolding.
+
+> **Note:** This project was originally developed under the ArcSettle repository name. The public product name is **Settlio**.
 
 ---
 
