@@ -41,6 +41,7 @@ export default function DashboardLayout({
   const navItems = [
     { href: "/dashboard", label: "Overview" },
     { href: "/dashboard/invoices", label: "Invoices" },
+    { href: "/dashboard/settings", label: "Settings" },
   ];
 
   if (!user) {

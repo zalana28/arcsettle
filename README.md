@@ -394,6 +394,27 @@ npx prisma studio   # Visual database browser
 
 ---
 
+## Security Notes: Wallet & Settlement Safety
+
+### Company Wallet Management
+
+- Company wallets are managed in **Dashboard → Settings**
+- Wallet addresses are normalized to lowercase and validated as EVM addresses
+- **Wallet addresses must be unique per company** — the backend rejects duplicates
+- Users can only update their own company's wallet address
+
+### Self-Settlement Prevention
+
+- **Buyer and seller wallets must be different** — enforced at multiple levels:
+  - Invoice creation rejects if both companies share the same wallet
+  - Mock settlement (`/settle`) rejects same-wallet invoices
+  - Wallet settlement (`/record-settlement`) rejects same-wallet invoices
+  - Circle transfer preview and execution reject same-wallet transfers
+- The frontend shows a red warning and disables settlement buttons when wallets match
+- This prevents circular/self-settlement even if a user registers multiple companies
+
+---
+
 ## Security Notes: Settlement Mode Safety
 
 ArcSettle enforces clear separation between demo/mock settlement and real wallet settlement:

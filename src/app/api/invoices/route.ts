@@ -55,6 +55,19 @@ export async function POST(request: NextRequest) {
       return errorResponse("Cannot create an invoice to yourself", 400);
     }
 
+    // Reject if buyer and seller wallets are the same
+    const seller = await prisma.company.findUnique({ where: { id: session.sub } });
+    if (
+      seller?.walletAddress &&
+      buyer.walletAddress &&
+      seller.walletAddress.toLowerCase() === buyer.walletAddress.toLowerCase()
+    ) {
+      return errorResponse(
+        "Buyer and seller wallets must be different.",
+        400
+      );
+    }
+
     const invoice = await prisma.invoice.create({
       data: {
         invoiceNumber: generateInvoiceNumber(),

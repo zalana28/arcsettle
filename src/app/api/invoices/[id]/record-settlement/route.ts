@@ -79,6 +79,18 @@ export async function POST(
       );
     }
 
+    // Self-settlement guard: buyer and seller wallets must be different
+    if (
+      invoice.buyer.walletAddress &&
+      invoice.seller.walletAddress &&
+      invoice.buyer.walletAddress.toLowerCase() === invoice.seller.walletAddress.toLowerCase()
+    ) {
+      return errorResponse(
+        "Invalid settlement: payer and receiver wallets must be different.",
+        400
+      );
+    }
+
     // Invoice must be in approved or processing state
     if (invoice.status !== "approved" && invoice.status !== "processing") {
       return errorResponse(
