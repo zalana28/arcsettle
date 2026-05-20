@@ -1,14 +1,14 @@
 # ArcSettle — Cross-Border B2B Invoice Settlement on Arc Testnet
 
-A production-ready MVP for settling B2B invoices using USDC on Arc Testnet. Companies can create, approve, and settle invoices through a clean dashboard with full transaction transparency.
+ArcSettle is a demo-ready B2B invoice settlement MVP using USDC on Arc Testnet. It supports invoice creation, buyer approval, connected-wallet settlement, settlement receipts, and Circle-powered developer wallet scaffolding.
 
 ---
 
 ## Live Demo
 
-> **Coming soon** — A hosted preview will be available at `https://arcsettle.vercel.app`
+> **Live Demo:** `<YOUR_VERCEL_URL_HERE>`
 >
-> In the meantime, run locally with `npm run dev` after setup (see [Local Setup](#local-setup)).
+> Replace this with the current production Vercel URL.
 
 ---
 
@@ -25,52 +25,39 @@ These accounts are created by `npx prisma db seed`. The login page includes quic
 
 ## Demo Flow
 
-Follow these steps to experience the full invoice lifecycle:
+1. **Seller logs in** — Use `seller@arcsettle.dev` / `password123`
+2. **Seller creates an invoice** — Go to Invoices > New Invoice, select the Buyer company, enter an amount
+3. **Buyer logs in** — Sign out, then use `buyer@arcsettle.dev` / `password123`
+4. **Buyer approves the invoice** — Open the pending invoice and click Approve
+5. **Buyer connects wallet** — Click "Connect Wallet" in the header, switch to Arc Testnet
+6. **Buyer saves wallet** — Go to Settings if the wallet is not already saved
+7. **Buyer pays with connected wallet** — Click "Pay with Connected Wallet" on the approved invoice
+8. **Receipt appears** — After on-chain confirmation, the settlement receipt shows transaction hash, fee, and chain info
 
-1. **Sign in as Seller** — Use `seller@arcsettle.dev` / `password123`
-2. **Create an invoice** — Go to Invoices → New Invoice, select the Buyer company, enter an amount
-3. **Sign out, then sign in as Buyer** — Use `buyer@arcsettle.dev` / `password123`
-4. **Approve the invoice** — Open the pending invoice and click Approve
-5. **Settle the invoice** — Click Settle Invoice (uses mock on-chain settlement)
-6. **View the receipt** — See settlement confirmation, transaction hash, and fee breakdown
-
-> No real funds are transferred. The mock provider generates simulated transaction hashes for demonstration purposes.
-
----
-
-## Overview
-
-ArcSettle is a B2B invoice settlement portal where companies can register, create invoices, and settle payments using USDC on Arc Testnet. The current implementation uses a mock settlement provider, but the service layer is architected so that real Circle/Arc integration can be swapped in without changing the core workflow.
-
-## Problem
-
-Cross-border B2B payments are slow, expensive, and difficult to track. Traditional bank intermediaries add days of processing time, high fees, and limited visibility into payment status — making reconciliation painful for finance teams on both sides.
-
-## Solution
-
-ArcSettle replaces bank intermediaries with a simple, transparent invoice workflow:
-
-```
-Seller creates invoice → Buyer approves → Settlement processes on-chain → Invoice settled with receipt
-```
-
-Payments settle in seconds with a flat 0.5% fee, full audit trail, and a transaction hash for proof of settlement.
+> **Public production** uses real wallet settlement (testnet USDC transfer on Arc Testnet).
+> **Local development** can use "Demo Mock Settlement" if `ENABLE_MOCK_SETTLEMENT=true`.
 
 ---
 
-## MVP Features
+## Features
 
 - Company registration and login (JWT auth)
-- Mock KYC auto-approval
+- Demo accounts with quick-fill login
+- Company wallet settings with uniqueness enforcement
 - Invoice creation with buyer selection
 - Buyer approval flow
-- Mock settlement service (pluggable for real integration)
-- Transaction hash generation (0x-prefixed)
+- **Real Arc Testnet wallet settlement** (connected-wallet ERC-20 USDC transfer)
+- On-chain receipt verification (Transfer event decode + from/to/amount match)
 - Settlement fee calculation (0.5%)
+- Buyer/seller same-wallet self-settlement prevention
 - Dashboard with stats and invoice status tracking
 - Invoice detail page with approve/settle actions
 - Settlement receipt with chain and fee info
 - Transaction detail page
+- Demo mock settlement mode (local/dev only)
+- Circle developer-controlled wallet scaffolding (dev/admin)
+- Circle transfer preview/execution (dev/admin)
+- Circle transaction status sync
 - Prisma seed data with demo accounts
 
 ## Tech Stack
@@ -83,34 +70,35 @@ Payments settle in seconds with a flat 0.5% fee, full audit trail, and a transac
 | Database | PostgreSQL + Prisma ORM |
 | Validation | Zod |
 | Auth | JWT via `jose` + `bcryptjs` |
-| Settlement | Mock provider (Circle/Arc-ready architecture) |
+| Wallet | wagmi + viem (injected connector) |
+| Settlement | Real wallet-signed Arc Testnet settlement + demo mock provider + Circle SDK scaffolding |
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Frontend (React / Next.js App Router)          │
-│  Pages: auth, dashboard, invoices, transactions │
-├─────────────────────────────────────────────────┤
-│  API Routes (Next.js Route Handlers)            │
-│  Auth, Invoices, Companies, Settlement          │
-├─────────────────────────────────────────────────┤
-│  Service Layer                                  │
-│  settlementService → mockProvider (swappable)   │
-├─────────────────────────────────────────────────┤
-│  Database (PostgreSQL + Prisma)                 │
-│  companies, invoices, transactions, audit_logs  │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|  Frontend (React / Next.js App Router)            |
+|  Pages: auth, dashboard, invoices, transactions   |
++---------------------------------------------------+
+|  API Routes (Next.js Route Handlers)              |
+|  Auth, Invoices, Companies, Settlement, Circle    |
++---------------------------------------------------+
+|  Service Layer                                    |
+|  settlementService -> mockProvider (swappable)    |
+|  arc-settlement-client -> real ERC-20 transfer    |
+|  circleTransactionService -> Circle SDK           |
++---------------------------------------------------+
+|  Database (PostgreSQL + Prisma)                   |
+|  companies, invoices, transactions, audit_logs    |
++---------------------------------------------------+
 ```
-
-The settlement service is the integration point. Today it runs `executeMockSettlement()`. Tomorrow it can run `executeArcSettlement()` or `executeCircleSettlement()` — same interface, real on-chain execution.
 
 ## Invoice Flow
 
 ```
-draft → pending_approval → approved → processing → settled
-                                                  → failed
-       → cancelled
+draft -> pending_approval -> approved -> processing -> settled
+                                                    -> failed
+         -> cancelled
 ```
 
 | Status | Meaning |
@@ -143,214 +131,66 @@ npx prisma db seed
 npm run dev
 ```
 
-## Environment Variables
+## Settlement Modes
 
-```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/arcsettle?schema=public"
-JWT_SECRET="change-this-in-production"
-NEXT_PUBLIC_APP_NAME="ArcSettle"
-SETTLEMENT_PROVIDER="mock"
-```
+| Mode | When | How it works |
+|------|------|-------------|
+| **Real wallet settlement** | Buyer wallet connected + matches saved address + different from seller | ERC-20 USDC transfer on Arc Testnet, verified on-chain |
+| **Demo mock settlement** | `ENABLE_MOCK_SETTLEMENT=true` (local/dev) | Simulates settlement with 1s delay and fake tx hash |
+| **Circle transfer** | `CIRCLE_DEV_TOOLS_ENABLED=true` (dev/admin) | Creates Circle developer-controlled wallet transfer |
 
-## Current Settlement Mode
+### Real Wallet Settlement
 
-ArcSettle uses a pluggable settlement provider architecture:
-
-| Provider | Status | Description |
-|----------|--------|-------------|
-| `mock` | **Active (default)** | Simulates settlement with 1s delay and fake tx hash |
-| `arc-wallet` | Scaffolded | Validates inputs, not yet executing real transfers |
-
-The `arc-wallet` provider performs full input validation (wallet addresses, currency, chain, USDC token config) but throws a clear error before any real transaction signing. Once client-side wallet signing is integrated, it will execute real ERC-20 transfers on Arc Testnet.
-
-Arc Testnet USDC ERC-20 interface is configured at `0x3600000000000000000000000000000000000000` (6 decimals). Arc uses USDC as the native gas token with 18 decimals for gas accounting, while the linked ERC-20 interface uses 6 decimals.
-
-To switch providers, set `SETTLEMENT_PROVIDER` in `.env`:
-```env
-SETTLEMENT_PROVIDER=mock        # Default — fake tx hashes
-SETTLEMENT_PROVIDER=arc-wallet  # Validates but does not execute yet
-```
-
-## Real Arc Settlement
-
-The "Pay with Connected Wallet" button is shown automatically when:
+The "Pay with Connected Wallet" button appears automatically when:
 - The buyer has a connected wallet on Arc Testnet (chain ID 5042002)
 - The connected wallet matches the buyer's saved wallet address
 - Buyer and seller wallets are different
 - The invoice is in `approved` status
 
-No feature flag is required to show the wallet settlement UI. The button appears based on actual wallet safety conditions.
+No feature flag is required. The button appears based on actual wallet safety conditions.
 
-When the buyer clicks "Pay with Connected Wallet":
-- The frontend executes a real ERC-20 USDC transfer from buyer → seller
-- Uses the Arc Testnet USDC interface at `0x3600000000000000000000000000000000000000`
-- After on-chain confirmation, the frontend calls `/api/invoices/:id/record-settlement` to persist the result
+**Backend verification:** The `/record-settlement` endpoint fetches the transaction receipt from Arc Testnet RPC, decodes the ERC-20 Transfer event, and verifies that from/to/amount match the expected values before marking the invoice as settled.
 
-**Backend verification:** The `/record-settlement` endpoint includes on-chain receipt verification. It fetches the transaction receipt from Arc Testnet RPC, decodes the ERC-20 Transfer event, and verifies that from/to/amount match the expected values before marking the invoice as settled. Production use still requires additional monitoring and compliance checks (e.g., block confirmation depth, transaction age limits, rate limiting).
+### Demo Mock Settlement (Local Only)
 
-> **Note:** `NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT` is no longer required to show the wallet settlement button. The variable is retained for backward compatibility but has no effect on the settlement UI.
+For local development and demo purposes only. Controlled by:
+- `SETTLEMENT_PROVIDER="mock"`
+- `ENABLE_MOCK_SETTLEMENT="true"` (backend)
+- `NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT="true"` (frontend button)
 
-## Circle API Integration Status
+In production, set both mock flags to `"false"`.
 
-Circle API key verification is supported for future Circle Wallets / Paymaster integration:
+### Circle Settlement (Dev/Admin)
+
+Circle developer-controlled wallet features are scaffolded for dev/admin use:
 
 | Feature | Status |
 |---------|--------|
-| API key verification | ✅ Supported (`GET /api/dev/circle/verify`) |
-| Circle Wallets | ✅ Scaffolded (dev endpoints) |
-| Circle Paymaster | Not enabled yet |
-| Circle Payments | Not enabled yet |
+| API key verification | Supported (`GET /api/dev/circle/verify`) |
+| Company Circle wallet creation | Supported (dev/admin, `CIRCLE_DEV_TOOLS_ENABLED=true`) |
+| Circle transfer preview | Supported (dev/admin) |
+| Circle transfer execution | Supported (dev/admin) |
+| Circle transaction status sync | Supported (manual poll via endpoint) |
+| Public user Circle payments | Not enabled |
+| Production webhook/polling | Planned |
 
-**Important:**
-- The Circle API key (`CIRCLE_API_KEY`) must remain server-side only — never exposed to the frontend
-- Existing settlement modes (mock + Arc wallet-signed) remain unchanged
-- Circle payments will be added in a future phase once the API key is verified and Circle services are configured
+Circle settlement only marks an invoice as settled after Circle reports status `COMPLETE`, `CONFIRMED`, or `SUCCESS` via the status sync endpoint.
 
-To verify your Circle API key:
-```bash
-curl http://localhost:3000/api/dev/circle/verify
-```
+---
 
-## Circle Wallets Service
-
-A server-side Circle Wallets service scaffold exists for managing developer-controlled wallets:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/dev/circle/wallets` | GET | List wallets |
-| `/api/dev/circle/wallets/:id` | GET | Get wallet by ID |
-| `/api/dev/circle/wallets` | POST | Create wallet (dev-only, protected) |
-
-**Dev endpoints are for testing only.** The POST endpoint is protected:
-- In production (`NODE_ENV=production`), wallet creation is disabled unless `CIRCLE_DEV_TOOLS_ENABLED=true`
-- These endpoints are not meant for public users
-- Circle payments and settlement via Circle Wallets are not enabled yet
-- The API key remains server-side only
-
-
-## Circle Entity Secret Setup
-
-Entity secret and ciphertext are required before developer-controlled wallet operations (create, sign, transfer):
+## Circle Configuration
 
 | Variable | Purpose |
 |----------|---------|
-| `CIRCLE_ENTITY_SECRET` | Raw 32-byte hex secret (server-only, NEVER expose) |
-| `CIRCLE_ENTITY_SECRET_CIPHERTEXT` | RSA-encrypted form (manual fallback if not using SDK) |
+| `CIRCLE_API_KEY` | Circle API key (server-only, NEVER expose) |
+| `CIRCLE_ENTITY_SECRET` | Raw 32-byte hex entity secret (server-only) |
+| `CIRCLE_ENTITY_SECRET_CIPHERTEXT` | RSA-encrypted form (manual fallback) |
+| `CIRCLE_DEV_TOOLS_ENABLED` | Enable dev/admin Circle endpoints |
+| `CIRCLE_API_BASE_URL` | Circle API base URL |
 
-**Configuration status endpoint:**
-```bash
-curl http://localhost:3000/api/dev/circle/entity-secret/status
-```
+The official `@circle-fin/developer-controlled-wallets` SDK is integrated. It generates fresh entity secret ciphertext automatically for each sensitive request.
 
-**Current status:** This project checks entity secret configuration. If using the SDK, ciphertext is generated automatically. Otherwise, generate it using Circle's documented RSA encryption flow.
-
-**Important:**
-- Entity secrets must remain server-side — never exposed to frontend or logs
-- No Circle payments are enabled yet
-- Existing settlement modes (mock + Arc wallet-signed) remain unchanged
-
-## Circle SDK Integration
-
-The official `@circle-fin/developer-controlled-wallets` SDK is integrated for future wallet operations:
-
-| Component | Status |
-|-----------|--------|
-| SDK installed | ✅ |
-| SDK client helper | ✅ (`getCircleDeveloperWalletsClient()`) |
-| Config status endpoint | ✅ (`GET /api/dev/circle/sdk/status`) |
-| Wallet creation via SDK | Not enabled yet |
-| Transactions via SDK | Not enabled yet |
-
-**Why the SDK?** Circle's entity secret ciphertext is single-use. The SDK generates fresh ciphertext automatically for each sensitive request, so you don't need to manage `CIRCLE_ENTITY_SECRET_CIPHERTEXT` manually.
-
-**Required environment variables:**
-- `CIRCLE_API_KEY` — Circle API key (server-only)
-- `CIRCLE_ENTITY_SECRET` — 32-byte hex entity secret (server-only)
-
-**Important:**
-- Both secrets must remain server-side — never exposed to frontend or logs
-- Circle wallet creation is not enabled yet
-- Existing settlement modes (mock + Arc wallet-signed) remain unchanged
-
-## Circle Company Wallets
-
-Companies can have Circle developer-controlled wallets created in dev/admin mode:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/dev/companies/:id/circle-wallet` | GET | Get company Circle wallet metadata |
-| `/api/dev/companies/:id/circle-wallet` | POST | Create Circle wallet for company |
-
-**Requirements:**
-- `CIRCLE_DEV_TOOLS_ENABLED=true` is required for wallet creation (POST)
-- `CIRCLE_API_KEY` and `CIRCLE_ENTITY_SECRET` must be configured
-- GET endpoint returns stored metadata only (no Circle API call)
-
-**Default blockchain:** `ARC-TESTNET` (Arc Testnet, chain ID 5042002). Circle company wallets are intended for Arc Testnet. You can override by passing `blockchain` in the POST body if needed.
-
-**Stored metadata on Company:**
-- `circleWalletId` — Circle wallet ID
-- `circleWalletSetId` — Circle wallet set ID
-- `circleWalletAddress` — On-chain wallet address
-- `circleWalletBlockchain` — Blockchain (e.g., ARC-TESTNET)
-- `circleWalletCreatedAt` — Creation timestamp
-
-**Important:**
-- Circle payments are still not enabled
-- If Circle API rejects ARC-TESTNET, a clear error is returned explaining the blockchain is not enabled for the account
-- The existing `walletAddress` field (MetaMask/WalletConnect) remains unchanged
-- Secrets remain server-side only
-
-## Circle Transaction Service
-
-Circle transfer transactions can be created via dev endpoints for testing:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/dev/circle/transactions/estimate` | POST | Estimate transfer fee |
-| `/api/dev/circle/transactions/transfer` | POST | Create transfer transaction |
-| `/api/dev/circle/transactions/:id` | GET | Get transaction status |
-| `/api/dev/invoices/:id/circle-transfer-preview` | POST | Preview invoice transfer (no execution) |
-| `/api/dev/invoices/:id/circle-transfer` | POST | Execute Circle transfer for invoice |
-
-**Important:**
-- All POST endpoints require `CIRCLE_DEV_TOOLS_ENABLED=true`
-- Circle transactions do **not** mark invoices as settled yet
-- Invoice moves to `processing` status when a transfer is created
-- Settlement confirmation will be handled in a later webhook/polling phase
-- Existing mock and wallet-signed Arc settlement flows are unchanged
-- Default blockchain is `ARC-TESTNET`
-
-## Circle Transaction Status Sync
-
-Circle transfer creation only moves an invoice to `processing`. A separate status sync step confirms whether the Circle transaction completed or failed.
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/dev/invoices/:id/check-circle-status` | POST | Check Circle transaction status and update invoice |
-
-**How it works:**
-
-1. When a Circle transfer is created, the invoice moves to `processing` and the transaction is stored with status `pending`.
-2. The status sync endpoint fetches the latest Circle transaction state via the Circle SDK.
-3. Based on the Circle state, it updates the invoice and transaction:
-
-| Circle State | Category | Invoice Action | Transaction Action |
-|--------------|----------|----------------|-------------------|
-| COMPLETE, CONFIRMED, SUCCESS | Success | Mark `settled`, set `settlementDate` + `settlementHash` | Mark `confirmed`, store `txHash` |
-| FAILED, CANCELLED, DENIED, REJECTED | Failure | Return to `approved` (retryable) | Mark `failed` |
-| INITIATED, PENDING, QUEUED, RUNNING | Pending | Keep `processing` | Update `circleTransactionStatus` only |
-| Any other | Unknown | Keep `processing` | Update `circleTransactionStatus` only |
-
-**Safety guarantees:**
-- If the Circle status fetch fails (network error, SDK error), no DB changes are made
-- Duplicate transaction rows are never created
-- The mock settlement flow and wallet-signed Arc settlement flow are unaffected
-- API key, entity secret, ciphertext, and raw Axios config are never returned or logged
-
-**UI:** When an invoice is in `processing` state with a pending Circle transaction, a "Check Circle Status" button appears on the invoice detail page. Clicking it calls the status sync endpoint and refreshes the invoice data.
-
-**Production roadmap:** The final production version should replace this manual check with a Circle webhook subscription or scheduled polling job. This dev endpoint is for testing and admin use during development.
+---
 
 ## Useful Commands
 
@@ -369,97 +209,79 @@ npx prisma studio   # Visual database browser
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| 1 | Mock settlement MVP | ✅ Complete |
-| 1.5 | README, seed data, deployment prep | ✅ Complete |
-| 2 | Wallet connect (MetaMask / WalletConnect) | Planned |
-| 3 | Real Arc Testnet transaction adapter | Planned |
-| 4 | Circle Wallets / Paymaster integration | Planned |
-| 5 | Multi-currency, compliance, cross-chain (CCTP) | Planned |
+| 1 | Mock settlement MVP | Complete |
+| 1.5 | README, seed data, deployment prep | Complete |
+| 2 | Wallet connect + company wallet settings | Complete |
+| 3 | Real Arc Testnet wallet settlement + on-chain verification | Complete / demo-ready |
+| 4 | Circle Wallets / transaction status sync | Scaffolded / dev-ready |
+| 5 | Production webhook/polling automation | Planned |
+| 6 | PDF receipts / invoice export | Planned |
+| 7 | Compliance / business onboarding | Planned |
+| 8 | Multi-currency, cross-chain (CCTP) | Planned |
 
 ---
 
-## Security Notes: Wallet & Settlement Safety
+## Security Notes
 
-### Company Wallet Management
+### Environment
 
-- Company wallets are managed in **Dashboard → Settings**
-- Wallet addresses are normalized to lowercase and validated as EVM addresses
-- **Wallet addresses must be unique per company** — the backend rejects duplicates
-- Users can only update their own company's wallet address
+- `.env` is gitignored and never committed
+- All secrets (`JWT_SECRET`, `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`) are server-only
+- `NEXT_PUBLIC_*` variables contain no secrets — only UI feature flags
+
+### Mock Settlement
+
+- Mock settlement is disabled in production (`ENABLE_MOCK_SETTLEMENT="false"`)
+- The "Demo Mock Settlement" button only appears when explicitly enabled
+- Mock settlement generates simulated transaction hashes — no real funds move
+
+### Real Wallet Settlement
+
+The `/api/invoices/:id/record-settlement` endpoint requires ALL of:
+- Authenticated user who is the **buyer** (payer) of the invoice
+- Valid `transactionHash` (0x-prefixed, 64 hex chars)
+- Valid `fromWallet` matching the buyer's wallet address on record
+- Valid `toWallet` matching the seller's wallet address on record
+- `amount` matching the invoice amount
+- `chain` identifier
+- On-chain receipt verification (Transfer event decode)
+
+If any validation fails, settlement is rejected.
 
 ### Self-Settlement Prevention
 
-- **Buyer and seller wallets must be different** — enforced at multiple levels:
-  - Invoice creation rejects if both companies share the same wallet
-  - Mock settlement (`/settle`) rejects same-wallet invoices
-  - Wallet settlement (`/record-settlement`) rejects same-wallet invoices
-  - Circle transfer preview and execution reject same-wallet transfers
+- **Buyer and seller wallets must be different** — enforced at invoice creation, mock settlement, wallet settlement, and Circle transfer endpoints
 - The frontend shows a red warning and disables settlement buttons when wallets match
-- This prevents circular/self-settlement even if a user registers multiple companies
 
----
+### Company Wallets
 
-## Security Notes: Settlement Mode Safety
+- Managed in Dashboard > Settings
+- Normalized to lowercase, validated as EVM addresses
+- Must be unique per company (backend rejects duplicates)
 
-ArcSettle enforces clear separation between demo/mock settlement and real wallet settlement:
+### Circle Dev Endpoints
 
-### Mock Settlement (Demo Only)
-
-- Mock settlement (`/api/invoices/:id/settle`) is **only allowed** when `SETTLEMENT_PROVIDER=mock` AND mock mode is explicitly enabled
-- In **production** (`NODE_ENV=production`): requires `ENABLE_MOCK_SETTLEMENT=true` — disabled by default
-- In **development**: allowed by default, can be disabled with `ENABLE_MOCK_SETTLEMENT=false`
-- The frontend labels mock settlement as **"Demo Mock Settlement"** with a clear warning that no real transaction is sent
-- Mock settlement generates simulated transaction hashes — no real funds move
-
-### Real Wallet Settlement (Transaction Proof Required)
-
-- The `/api/invoices/:id/record-settlement` endpoint requires **all** of the following:
-  - Authenticated user who is the **buyer** (payer) of the invoice
-  - Valid `transactionHash` (0x-prefixed, 64 hex chars)
-  - Valid `fromWallet` matching the buyer's wallet address on record
-  - Valid `toWallet` matching the seller's wallet address on record
-  - `amount` matching the invoice amount
-  - `chain` identifier
-- On-chain verification is performed: the backend fetches the transaction receipt and verifies the Transfer event matches expected from/to/amount
-- If any validation fails, settlement is rejected
-
-### Circle Settlement (Status Confirmation Required)
-
-- Circle settlement only marks an invoice as settled after Circle reports status `COMPLETE`, `CONFIRMED`, or `SUCCESS`
-- The manual "Check Circle Status" endpoint polls Circle and updates the invoice only on confirmed success
-- Circle flow does not bypass wallet proof requirements — it uses Circle's own verification
+- All Circle dev endpoints require `CIRCLE_DEV_TOOLS_ENABLED="true"`
+- In production, set to `"false"` to disable entirely
+- Secrets are never returned in API responses or logged
 
 ### Production Configuration
 
-For production deployments, set:
-
 ```env
-SETTLEMENT_PROVIDER="mock"             # or "arc-wallet" for real settlement
-ENABLE_MOCK_SETTLEMENT="false"         # Disable mock settlement in production
-NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT="false"  # Hide mock button in frontend
-CIRCLE_DEV_TOOLS_ENABLED="false"       # Disable Circle dev endpoints
+SETTLEMENT_PROVIDER="mock"
+ENABLE_MOCK_SETTLEMENT="false"
+NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT="false"
+CIRCLE_DEV_TOOLS_ENABLED="false"
 ```
-
-| Variable | Purpose | Production Value |
-|----------|---------|-----------------|
-| `ENABLE_MOCK_SETTLEMENT` | Backend: allow/deny mock settle endpoint | `false` |
-| `NEXT_PUBLIC_ENABLE_MOCK_SETTLEMENT` | Frontend: show/hide mock settle button | `false` |
-| `SETTLEMENT_PROVIDER` | Backend: which provider executes settlement | `arc-wallet` |
-| `CIRCLE_DEV_TOOLS_ENABLED` | Backend: enable/disable Circle dev endpoints | `false` |
-
-> **Note:** `NEXT_PUBLIC_ENABLE_REAL_ARC_SETTLEMENT` is no longer needed. The real wallet settlement button is shown automatically when wallet conditions are met.
 
 ---
 
 ## Disclaimer
 
-This is an MVP running with **mock settlement**. It is not production financial software. No real funds are transferred. The mock provider generates simulated transaction hashes for demonstration purposes only.
+This is an MVP/testnet application. Real wallet settlement submits testnet transactions on Arc Testnet using testnet USDC. It is not production financial software and should not be used for mainnet funds.
 
 ---
 
 ## License
 
 MIT
-
-
-<!-- real payment preview rebuild -->
