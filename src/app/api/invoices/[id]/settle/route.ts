@@ -46,7 +46,7 @@ export async function POST(
     );
   }
 
-  const invoice = await prisma.invoice.findUnique({ where: { id } });
+  const invoice = await prisma.invoice.findUnique({ where: { id }, include: { seller: true, buyer: true } });
 
   if (!invoice) {
     return errorResponse("Invoice not found", 404);
@@ -60,6 +60,18 @@ export async function POST(
   if (invoice.status !== "approved") {
     return errorResponse(
       `Cannot settle invoice with status: ${invoice.status}`,
+      400
+    );
+  }
+
+  // Self-settlement guard: buyer and seller wallets must be different
+  if (
+    invoice.seller.walletAddress &&
+    invoice.buyer.walletAddress &&
+    invoice.seller.walletAddress.toLowerCase() === invoice.buyer.walletAddress.toLowerCase()
+  ) {
+    return errorResponse(
+      "Invalid settlement: payer and receiver wallets must be different.",
       400
     );
   }

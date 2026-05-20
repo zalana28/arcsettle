@@ -44,6 +44,19 @@ export async function POST(
     );
   }
 
+  // Self-settlement guard
+  const sourceAddress = invoice.buyer.circleWalletAddress || invoice.buyer.walletAddress;
+  if (
+    sourceAddress &&
+    destinationAddress &&
+    sourceAddress.toLowerCase() === destinationAddress.toLowerCase()
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Invalid settlement: payer and receiver wallets must be different." },
+      { status: 400 }
+    );
+  }
+
   return NextResponse.json({
     success: true,
     data: {
