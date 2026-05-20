@@ -198,10 +198,18 @@ export default function InvoiceDetailPage({
     !!invoice.buyer.walletAddress &&
     invoice.seller.walletAddress.toLowerCase() === invoice.buyer.walletAddress.toLowerCase();
 
-  const walletValidationError =
-    realSettlementEnabled && isBuyer
-      ? validateWalletForSettlement(connectedAddress, invoice.buyer.walletAddress || undefined, chainId)
-      : null;
+  // Wallet settlement readiness — always computed from wagmi state (same source as header)
+  const walletValidationError = isBuyer
+    ? validateWalletForSettlement(connectedAddress, invoice.buyer.walletAddress || undefined, chainId)
+    : null;
+
+  // Determine wallet-aware settlement status for the buyer
+  const buyerWalletConnected = !!connectedAddress;
+  const buyerWalletMatchesSaved =
+    buyerWalletConnected &&
+    !!invoice.buyer.walletAddress &&
+    connectedAddress!.toLowerCase() === invoice.buyer.walletAddress.toLowerCase();
+  const buyerWalletSaved = !!invoice.buyer.walletAddress;
 
   // Detailed disabled reasons for real settlement
   const getDisabledReasons = (): string[] => {
@@ -218,6 +226,18 @@ export default function InvoiceDetailPage({
     if (invoice.status !== "approved") reasons.push("Invoice is not in approved status");
     return reasons;
   };
+
+  // Dev-only wallet state debug logging
+  if (process.env.NODE_ENV === "development" && invoice.status === "approved" && isBuyer) {
+    console.log("[wallet-debug]", {
+      connectedWalletAddress: connectedAddress || null,
+      buyerWalletAddress: invoice.buyer.walletAddress || null,
+      walletsMatch: buyerWalletMatchesSaved,
+      chain: chainId,
+      realSettlementEnabled,
+      mockSettlementEnabled,
+    });
+  }
 
   return (
     <div>
@@ -370,6 +390,39 @@ export default function InvoiceDetailPage({
               onMockSettle={mockSettlementEnabled ? handleMockSettle : undefined}
               mockSettlementEnabled={mockSettlementEnabled}
             />
+          ) : isBuyer && buyerWalletConnected ? (
+            <div>
+              {!buyerWalletSaved ? (
+                <p className="text-sm text-amber-700 mb-3 font-medium">
+                  Save your connected wallet in Settings before settlement.
+                </p>
+              ) : !buyerWalletMatchesSaved ? (
+                <p className="text-sm text-amber-700 mb-3 font-medium">
+                  Connected wallet does not match the buyer wallet.
+                </p>
+              ) : null}
+              {mockSettlementEnabled && (
+                <div className="mb-3">
+                  <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-800 font-medium">
+                      Demo mode: no wallet transaction will be sent. This uses mock settlement for demonstration only.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleMockSettle}
+                    disabled={actionLoading}
+                    className="px-6 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors disabled:opacity-50"
+                  >
+                    {actionLoading ? "Settling..." : "Demo Mock Settlement"}
+                  </button>
+                </div>
+              )}
+              {!mockSettlementEnabled && !realSettlementEnabled && (
+                <p className="text-sm text-gray-500">
+                  Wallet settlement requires real Arc settlement to be enabled.
+                </p>
+              )}
+            </div>
           ) : mockSettlementEnabled ? (
             <div>
               <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
