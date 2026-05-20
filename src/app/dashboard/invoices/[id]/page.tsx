@@ -193,6 +193,10 @@ export default function InvoiceDetailPage({
   const isBuyer = currentUserId === invoice.buyer.id;
   const isSeller = currentUserId === invoice.seller.id;
   const walletsReady = !!invoice.seller.walletAddress && !!invoice.buyer.walletAddress;
+  const sameWallet =
+    !!invoice.seller.walletAddress &&
+    !!invoice.buyer.walletAddress &&
+    invoice.seller.walletAddress.toLowerCase() === invoice.buyer.walletAddress.toLowerCase();
 
   const walletValidationError =
     realSettlementEnabled && isBuyer
@@ -305,6 +309,14 @@ export default function InvoiceDetailPage({
         </div>
       </div>
 
+      {/* Same wallet warning */}
+      {sameWallet && invoice.status === "approved" && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          <strong>Invalid invoice:</strong> buyer and seller wallets are the same.
+          Update wallet settings before settlement.
+        </div>
+      )}
+
       {/* Actions */}
       {invoice.status === "pending_approval" && isBuyer && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
@@ -333,10 +345,12 @@ export default function InvoiceDetailPage({
             {(parseFloat(invoice.amount) * 0.005).toFixed(2)} USDC)
           </p>
 
-          {!walletsReady ? (
+          {!walletsReady || sameWallet ? (
             <div>
               <p className="text-sm text-amber-700 mb-3 font-medium">
-                Both parties must connect wallets before settlement.
+                {sameWallet
+                  ? "Buyer and seller wallets are the same. Update wallet settings before settlement."
+                  : "Both parties must connect wallets before settlement."}
               </p>
               <button
                 disabled

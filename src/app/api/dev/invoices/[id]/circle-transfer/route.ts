@@ -62,6 +62,19 @@ export async function POST(
       );
     }
 
+    // Self-settlement guard
+    const sourceAddress = invoice.buyer.circleWalletAddress || invoice.buyer.walletAddress;
+    if (
+      sourceAddress &&
+      destinationAddress &&
+      sourceAddress.toLowerCase() === destinationAddress.toLowerCase()
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Invalid settlement: payer and receiver wallets must be different." },
+        { status: 400 }
+      );
+    }
+
     // ─── Step 1: Create Circle transfer ─────────────────────────────────────
     // If this fails, we do NOT create a Transaction row or change invoice status.
     const transferInput = {
